@@ -36,7 +36,7 @@ export interface DesktopAPI {
   exportCover: (video: string, cover: string) => Promise<{ path: string }>
   onProgress: (callback: (percent: number) => void) => () => void
   revealOutput: () => Promise<void>
-  openLink: (id: 'github' | 'ffmpeg' | 'icaros') => Promise<void>
+  openLink: (id: 'github' | 'ffmpeg' | 'icaros' | 'ezqr' | 'campuslink') => Promise<void>
 }
 declare global {
   interface Window { videoTools: DesktopAPI }

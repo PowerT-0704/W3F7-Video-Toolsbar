@@ -1,22 +1,20 @@
-# v0.1.0-preview.1 验收记录
+# v0.1.0-preview.2 验收记录
 
-验收环境为 Windows 11 x64，FFmpeg 与 FFprobe 为 9.0.2，便携包含 Electron 45.3.3。
+验收环境为 Windows 11 x64。桌面包使用 Electron 45.3.3，外置 FFmpeg 与 FFprobe 为 9.0.2。
 
 | 检查 | 结果 |
 | --- | --- |
-| 单文件 BAT | 复制到独立文件夹，从不同工作目录传入 MP4 与 PNG/JPEG，两个顺序均可用，成品位于脚本旁 |
-| 便携桌面版 | 解压后启动，检测外置 FFmpeg，导入文件并显示视频参数、封面预览和导出结果 |
-| 封面和原始素材 | PNG、JPEG 提取后 SHA-256 与各自输入一致。原始素材与需求文件的 SHA-256 与开工前记录一致 |
-| 音视频 | H.264 和 AAC 的逐流 SHA-256 一致，样片时长保持 41.621333 秒，解码验证通过 |
-| 时间码与章节 | 样片的时间码保持 `00:02:16:35`。带两章的测试 MP4 保留标题与章节时间 |
-| 资源管理器 | 大图标视图中，成品 MP4 与所选 PNG 显示同一封面。JPEG 成品经 Windows 缩略图接口复验同样显示所选图 |
-| 失败及重试 | 重名自动编号。损坏图片、缺少 FFmpeg、输出目录禁止写入时返回可读错误，未留下半成品 |
-| 界面 | 同时拖入文件、系统文件选择窗口、封面预览、导出、设置与关于页面已检查。减少动效设置已验证生效 |
-| 构建 | `npm run typecheck`、`npm run build`、`npm run package:win` 通过。 `npm audit` 报告 0 项已知漏洞 |
+| 窗口 | 标题区与内容区使用相同底色，检查原生窗口控制和标题区拖动。窄窗口的封面工作区为单列，侧栏可打开并在导航后关闭 |
+| 侧栏与 FFmpeg | 「设置」「关于」固定在侧栏底部。就绪或需配置仅在「视频封面封装」页显示。缺少程序时仍可导入素材，封装按钮禁用 |
+| 导入 | 同时拖入、分别拖入、素材替换和系统选择窗口均已检查。重复类型、普通文本、损坏媒体提示错误 |
+| 关于 | 禁用 HTTP/HTTPS 加载时本地 GitHub 头像仍正常显示，作者介绍与两个公开项目可见 |
+| 无损导出 | 封装成品的 H.264、AAC 流 SHA-256 与原片一致，内嵌 PNG 的 SHA-256 与原图一致。样片时长为 41.621333 秒，时间码保持 00:02:16:35 |
+| 缩略图 | Windows 资源管理器大图标视图显示所选封面 |
+| 交付 | TypeScript、生产构建、Windows x64 ZIP、解压运行和依赖审计通过。项目只留一份验收成片，测试配置和临时目录在验收后清理 |
 
-## 媒体核对方法
+## 复查成片
 
-对原视频和导出视频各执行一次流哈希命令。对提取后的图片用 `Get-FileHash -Algorithm SHA256` 比对原图。
+将原视频和导出视频分别作为输入，比较音视频逐流哈希。对提取图片与原封面使用 `Get-FileHash -Algorithm SHA256`。
 
 ```powershell
 ffmpeg -v error -i input.mp4 -map "0:V" -map "0:a?" -c copy -f streamhash -hash SHA256 -
@@ -24,6 +22,4 @@ ffprobe -v error -show_streams -show_chapters -of json output.mp4
 ffmpeg -v error -i output.mp4 -map "0:v:disp:attached_pic" -c copy -frames:v 1 -update 1 extracted.png
 ```
 
-样片视频流 SHA-256 为 `ba1cabc19f967f3ef3729bd90588ea9ea7a6e8461514d041aa8356450c686d94`，音频流为 `78dd122024f7236f75345609f3e4b6d58a223a9af3739228ecbeb81189b4c57a`。测试素材、输出样片和备份只保存在本地。
-
-资源管理器的展示由 Windows 已启用的缩略图处理器决定。其他 Windows 环境可按 README 使用自己的样片验收。上传平台由用户后测。BAT 的双文件入口通过实际命令行传参验证。
+在资源管理器打开成品所在文件夹，切换到「大图标」核对封面。其他 Windows 环境可按 README 中的说明复验。上传平台由用户后测。

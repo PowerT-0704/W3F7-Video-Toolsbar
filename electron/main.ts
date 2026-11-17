@@ -17,6 +17,8 @@ type CoreRequest =
 const defaultPreferences: Preferences = { toolDirectory: '', outputDirectory: '', reduceMotion: false }
 const links = {
   github: 'https://github.com/PowerT-0704',
+  ezqr: 'https://github.com/PowerT-0704/EzQR-Tools',
+  campuslink: 'https://github.com/PowerT-0704/CampusLink',
   ffmpeg: 'https://ffmpeg.org/download.html#build-windows',
   icaros: 'https://github.com/Xanashi/Icaros#thumbnailing-options',
 } as const
@@ -204,9 +206,9 @@ function registerHandlers() {
 function createWindow() {
   appWindow = new BrowserWindow({
     width: 1150, height: 774, minWidth: 750, minHeight: 610, show: false,
-    title: 'W3F7のVideo_Toolsbar', backgroundColor: '#0c0e17', autoHideMenuBar: true,
+    title: 'W3F7のVideo_Toolsbar', backgroundColor: '#0a0a0a', autoHideMenuBar: true,
     titleBarStyle: 'hidden',
-    titleBarOverlay: { color: '#0e101a', symbolColor: '#c9cadd', height: 39 },
+    titleBarOverlay: { color: '#0a0a0a', symbolColor: '#d4d4d4', height: 40 },
     webPreferences: { preload: join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true },
   })
   appWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))

@@ -4,7 +4,7 @@
 
 **给 MP4 装上自己的封面，保留视频和音频的原始编码。**
 
-![版本](https://img.shields.io/badge/preview-0.1.0--preview.1-8170d1)
+![版本](https://img.shields.io/badge/preview-0.1.0--preview.2-8170d1)
 ![平台](https://img.shields.io/badge/Windows-x64-577ac6)
 ![引擎](https://img.shields.io/badge/engine-FFmpeg-4e9a76)
 
@@ -26,7 +26,9 @@
 
 ### 桌面便携版
 
-完整解压 Windows x64 ZIP 后打开 `W3F7-Video-Toolsbar.exe`。在「视频封面」中拖入 MP4 和 PNG、JPG 或 JPEG，也可以用各自的文件选择按钮。确认预览及保存位置，然后点击「封装封面」。完成后点击「查看成品」即可在资源管理器中定位生成的 MP4。
+完整解压 Windows x64 ZIP 后打开 `W3F7-Video-Toolsbar.exe`。启动后会自动检测 FFmpeg 和 FFprobe，结果显示在「视频封面封装」中。
+
+把 MP4 和封面拖入虚线区域，可以一起拖，也可以逐个拖。页面会识别视频和 PNG、JPG、JPEG 封面，并分别显示到素材列表。也可以用「选择视频」「选择封面」导入。确认预览及保存位置，点击「封装封面」。完成后点击「在资源管理器中查看」。
 
 ### 单文件批处理
 
@@ -65,6 +67,6 @@ npm start
 
 ## 致谢
 
-界面参考 [shadcn/ui](https://github.com/shadcn-ui/ui) 的侧栏及按钮模式。拖放柔光参考 [React Bits Spotlight Card](https://www.reactbits.dev/components/spotlight-card)。Border Beam、Blur Fade 与 Shimmer Button 适配自 [Magic UI](https://github.com/magicuidesign/magicui)，第三方许可见 [licenses](licenses/)。
+界面使用 [shadcn/ui](https://github.com/shadcn-ui/ui) 官方 New York 组件和 Neutral 暗色主题，搭配 [Geist](https://github.com/vercel/geist-font) 字体。关于页的头像来自 [W3F7 的 GitHub 主页](https://github.com/PowerT-0704)，随应用本地打包。第三方许可见 [licenses](licenses/)。
 
 **作者** [W3F7 · PowerT-0704](https://github.com/PowerT-0704)
