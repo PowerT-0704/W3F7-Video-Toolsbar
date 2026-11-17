@@ -1,5 +1,7 @@
 export type AssetKind = 'video' | 'cover'
-export type Page = 'cover' | 'settings' | 'about'
+export type Page = 'home' | 'cover' | 'changelog' | 'settings' | 'about'
+export type ExternalLinkId = 'github' | 'ffmpeg' | 'icaros' | 'ezqr' | 'campuslink' |
+  'website' | 'bilibili' | 'qq' | 'shadcn' | 'magicui' | 'reactbits'
 export interface Asset {
   id: string
   kind: AssetKind
@@ -36,7 +38,7 @@ export interface DesktopAPI {
   exportCover: (video: string, cover: string) => Promise<{ path: string }>
   onProgress: (callback: (percent: number) => void) => () => void
   revealOutput: () => Promise<void>
-  openLink: (id: 'github' | 'ffmpeg' | 'icaros' | 'ezqr' | 'campuslink') => Promise<void>
+  openLink: (id: ExternalLinkId) => Promise<void>
 }
 declare global {
   interface Window { videoTools: DesktopAPI }

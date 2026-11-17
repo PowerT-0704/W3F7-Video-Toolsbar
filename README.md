@@ -4,7 +4,7 @@
 
 **给 MP4 装上自己的封面，保留视频和音频的原始编码。**
 
-![版本](https://img.shields.io/badge/preview-0.1.0--preview.2-8170d1)
+![版本](https://img.shields.io/badge/preview-0.1.0--preview.3-525252)
 ![平台](https://img.shields.io/badge/Windows-x64-577ac6)
 ![引擎](https://img.shields.io/badge/engine-FFmpeg-4e9a76)
 
@@ -13,7 +13,7 @@
 </div>
 
 <div align="center">
-<img src="docs/preview.png" width="900" alt="W3F7のVideo_Toolsbar 视频封面工作区">
+<img src="docs/preview.png" width="900" alt="W3F7のVideo_Toolsbar 起始页">
 </div>
 
 ## 快速开始
@@ -26,7 +26,7 @@
 
 ### 桌面便携版
 
-完整解压 Windows x64 ZIP 后打开 `W3F7-Video-Toolsbar.exe`。启动后会自动检测 FFmpeg 和 FFprobe，结果显示在「视频封面封装」中。
+完整解压 Windows x64 ZIP 后打开 `W3F7-Video-Toolsbar.exe`。启动后进入起始页，可从首页或侧栏打开「视频封面封装」。FFmpeg 和 FFprobe 在后台自动检测，结果显示在工具页。
 
 把 MP4 和封面拖入虚线区域，可以一起拖，也可以逐个拖。页面会识别视频和 PNG、JPG、JPEG 封面，并分别显示到素材列表。也可以用「选择视频」「选择封面」导入。确认预览及保存位置，点击「封装封面」。完成后点击「在资源管理器中查看」。
 
@@ -43,7 +43,7 @@
 
 ## 资源管理器缩略图
 
-在本机 Windows 11 大图标视图中，样片的内嵌 PNG 已显示为 MP4 缩略图。在其他机器上，可切换到「大图标」并打开新导出文件所在的目录进行复验。若缩略图仍取自视频画面，可手动配置 [Icaros](https://github.com/Xanashi/Icaros)。
+在本机 Windows 11 的原生文件选择器中，样片的内嵌 PNG 已显示为 MP4 缩略图。在其他机器上，可切换到资源管理器的「大图标」视图，打开新导出文件所在的目录复验。若缩略图仍取自视频画面，可手动配置 [Icaros](https://github.com/Xanashi/Icaros)。
 
 1. 从 [Icaros Releases](https://github.com/Xanashi/Icaros/releases) 获取并打开 IcarosConfig。
 2. 在 **Thumbnailing** 中将 `.mp4` 加入已启用的类型，打开 **Use embedded Cover Art for thumbnails**，然后启用 **Thumbnailing**。
@@ -62,11 +62,11 @@ npm start
 
 - `npm run build:bat` 更新单文件批处理。原始封装逻辑在 `core/cover.ps1`。
 - `npm run typecheck` 运行 TypeScript 检查。 `npm run package:win` 构建可解压运行的 ZIP，输出到 `artifacts`。
-- FFmpeg 支持和本地文件操作通过 Electron 主进程提供给界面。界面按封面工具、设置与关于组织。
-- 原始样片、生成视频、打包目录与本地备份保留在工作区。上传 GitHub 前可从 Git 快照重建交付包。
+- FFmpeg 支持和本地文件操作由 Electron 主进程提供。界面包括起始页、封面工具、开发日志、设置与关于。
+- 原始样片、验收视频、便携 ZIP 与本地备份保留在工作区。可从 Git 快照重建交付包。
 
 ## 致谢
 
-界面使用 [shadcn/ui](https://github.com/shadcn-ui/ui) 官方 New York 组件和 Neutral 暗色主题，搭配 [Geist](https://github.com/vercel/geist-font) 字体。关于页的头像来自 [W3F7 的 GitHub 主页](https://github.com/PowerT-0704)，随应用本地打包。第三方许可见 [licenses](licenses/)。
+界面使用 [shadcn/ui](https://github.com/shadcn-ui/ui) 官方 New York 组件和 Neutral 暗色主题，搭配 [Geist](https://github.com/vercel/geist-font) 字体。关于页的头像来自 [W3F7 的 GitHub 主页](https://github.com/PowerT-0704)，随应用本地打包。切页、拖入和按钮反馈使用 Motion 和 Magic UI，柔光参照 React Bits。第三方许可见 [licenses](licenses/)。
 
 **作者** [W3F7 · PowerT-0704](https://github.com/PowerT-0704)

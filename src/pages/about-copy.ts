@@ -1,0 +1,1 @@
+export const aboutCopy = "A Student from CDUTYB 数字媒体技术.\n平时喜欢做提效的桌面小工具，同时也会开发 After Effects 脚本，把视频制作里重复的操作交给脚本处理\n本软件算是我第一个大型整合、有持续开发计划的软件吧 感谢使用和建议\n\n本软件在Github上已创建开源仓库，欢迎提Issues和PR\n希望这些小小的工具能够帮助到每一个需要的Editors \n个人开发不易 持续开发ing 感谢您的陪伴与支持！\n"

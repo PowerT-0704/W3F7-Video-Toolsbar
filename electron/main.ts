@@ -16,6 +16,12 @@ type CoreRequest =
 
 const defaultPreferences: Preferences = { toolDirectory: '', outputDirectory: '', reduceMotion: false }
 const links = {
+  website: "https://w3f7.cn",
+  bilibili: "https://space.bilibili.com/1135924891?spm_id_from=333.1007.0.0",
+  qq: "http://qm.qq.com/cgi-bin/qm/qr?_wv=1027&k=h-stGncQWM6yJbRpfqHG6J8JI45h9fBm&authKey=Vzm7clWrhmbi0JbPa2CjYRDl98VXcmW9Bfhg5nRqZC0QB1oPfK0knINTzvFnMzTd&noverify=0&group_code=934019491",
+  shadcn: 'https://github.com/shadcn-ui/ui',
+  magicui: 'https://github.com/magicuidesign/magicui',
+  reactbits: 'https://github.com/DavidHDev/react-bits',
   github: 'https://github.com/PowerT-0704',
   ezqr: 'https://github.com/PowerT-0704/EzQR-Tools',
   campuslink: 'https://github.com/PowerT-0704/CampusLink',

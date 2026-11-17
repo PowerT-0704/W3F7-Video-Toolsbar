@@ -1,9 +1,15 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { DragEvent } from 'react'
 import { AlertCircle, ArrowDownToLine, Check, CircleCheck, FileVideo, FolderOpen, ImageIcon, LoaderCircle, Upload } from 'lucide-react'
+import { AnimatePresence, motion } from 'motion/react'
 import type { Asset, AssetKind, Preferences, VideoDetails } from '../bridge'
 import { api, errorText, type EngineStatus } from '../workspace'
+import { ActionButton } from '../ui/action-button'
+import { BlurFade } from '../ui/blur-fade'
+import { BorderBeam } from '../ui/border-beam'
 import { cn } from '../ui/class-names'
+import { useMotionEnabled } from '../ui/motion-policy'
+import { positionSpotlight } from '../ui/spotlight'
 import { Alert, AlertDescription, AlertTitle } from '../ui/shadcn/alert'
 import { Badge } from '../ui/shadcn/badge'
 import { Button } from '../ui/shadcn/button'
@@ -13,6 +19,7 @@ import { Progress } from '../ui/shadcn/progress'
 import { Separator } from '../ui/shadcn/separator'
 
 interface CoverPageProps {
+  active: boolean
   engine: EngineStatus
   preferences: Preferences
   onChooseOutput: () => Promise<void>
@@ -46,18 +53,18 @@ function AssetRow({ kind, asset, info, disabled, onPick }: {
   return (
     <div className="flex min-w-0 items-center gap-3">
       <span className="bg-muted text-muted-foreground grid size-9 shrink-0 place-items-center rounded-md"><Icon className="size-4" /></span>
-      <div className="min-w-0 flex-1">
+      <BlurFade key={asset?.id ?? kind} className="min-w-0 flex-1" delay={asset && kind === 'cover' ? 0.045 : 0}>
         <p className="text-muted-foreground text-xs">{typeName}</p>
         <p className="truncate text-sm font-medium" title={asset?.path}>{asset?.name ?? '尚未导入'}</p>
         {asset && <p className="text-muted-foreground mt-0.5 truncate text-xs">{info || sizeLabel(asset.bytes)}</p>}
-      </div>
+      </BlurFade>
       <Button type="button" variant={asset ? 'ghost' : 'outline'} size="sm" disabled={disabled} onClick={onPick}
         aria-label={(asset ? '更换' : '选择') + typeName}>{asset ? '更换' : '选择'}</Button>
     </div>
   )
 }
 
-export function CoverPage({ engine, preferences, onChooseOutput, onOpenSettings, onRetry }: CoverPageProps) {
+export function CoverPage({ active, engine, preferences, onChooseOutput, onOpenSettings, onRetry }: CoverPageProps) {
   const [video, setVideo] = useState<Asset>()
   const [cover, setCover] = useState<Asset>()
   const [videoReview, setVideoReview] = useState<Review<VideoDetails>>()
@@ -71,6 +78,30 @@ export function CoverPage({ engine, preferences, onChooseOutput, onOpenSettings,
   const selectingRef = useRef(false)
   const exportingRef = useRef(false)
   const dragDepth = useRef(0)
+  const dragTimeout = useRef<number>(undefined)
+  const currentCoverId = useRef<string>(undefined)
+  const motionEnabled = useMotionEnabled()
+  const animated = active && motionEnabled
+
+  const resetDrag = useCallback(() => {
+    window.clearTimeout(dragTimeout.current)
+    dragDepth.current = 0
+    setDragging(false)
+  }, [])
+
+  useEffect(() => {
+    if (!active) {
+      resetDrag()
+      return
+    }
+    window.addEventListener('dragend', resetDrag)
+    window.addEventListener('blur', resetDrag)
+    return () => {
+      window.clearTimeout(dragTimeout.current)
+      window.removeEventListener('dragend', resetDrag)
+      window.removeEventListener('blur', resetDrag)
+    }
+  }, [active, resetDrag])
 
   useEffect(() => api.onProgress((value) => setProgress((previous) => Math.max(previous, value))), [])
 
@@ -108,6 +139,7 @@ export function CoverPage({ engine, preferences, onChooseOutput, onOpenSettings,
       for (const asset of assets) {
         if (asset.kind === 'video') setVideo(asset)
         else {
+          currentCoverId.current = asset.id
           setCoverReview(undefined)
           setCover(asset)
         }
@@ -132,19 +164,30 @@ export function CoverPage({ engine, preferences, onChooseOutput, onOpenSettings,
     if (!event.dataTransfer.types.includes('Files') || controlsBusy) return
     event.preventDefault()
     dragDepth.current++
+    keepDragAlive()
+  }
+
+  function keepDragAlive() {
+    window.clearTimeout(dragTimeout.current)
+    // A drag cancelled in Explorer may stop sending events without a final dragleave.
+    dragTimeout.current = window.setTimeout(resetDrag, 750)
     setDragging(true)
   }
 
   function onDragLeave(event: DragEvent) {
-    if (!event.dataTransfer.types.includes('Files')) return
+    if (!dragDepth.current) return
+    const next = event.relatedTarget
+    if (next instanceof Node && !event.currentTarget.contains(next)) {
+      resetDrag()
+      return
+    }
     dragDepth.current = Math.max(0, dragDepth.current - 1)
-    if (!dragDepth.current) setDragging(false)
+    if (!dragDepth.current) resetDrag()
   }
 
   function onDrop(event: DragEvent) {
     event.preventDefault()
-    dragDepth.current = 0
-    setDragging(false)
+    resetDrag()
     const files = Array.from(event.dataTransfer.files)
     if (files.length) void select(() => api.drop(files))
   }
@@ -181,12 +224,16 @@ export function CoverPage({ engine, preferences, onChooseOutput, onOpenSettings,
     </EmptyHeader>
   )
   const issue = [error, videoError, coverError].filter(Boolean).join(' ')
+  const beam = animated && dragging && <BorderBeam size={105} duration={2.2} borderWidth={1.5} colorFrom="#ffffff" colorTo="#777777" />
 
   return (
     <section className="page-layout" onDragEnter={onDragEnter} onDragLeave={onDragLeave} onDrop={onDrop}
       onDragOver={(event) => {
         event.preventDefault()
-        if (event.dataTransfer.types.includes('Files')) event.dataTransfer.dropEffect = controlsBusy ? 'none' : 'copy'
+        if (event.dataTransfer.types.includes('Files')) {
+          event.dataTransfer.dropEffect = controlsBusy ? 'none' : 'copy'
+          if (!controlsBusy) keepDragAlive()
+        }
       }}>
       <header className="page-header">
         <div className="grid gap-1.5">
@@ -194,16 +241,16 @@ export function CoverPage({ engine, preferences, onChooseOutput, onOpenSettings,
           <p>为 MP4 写入自定义封面，保留原始画质和音轨。</p>
         </div>
         <div role="status" aria-live="polite">
-          <Badge variant="outline">
+          <BlurFade key={engine.kind}><Badge variant="outline">
             {engine.kind === 'ready' && <CircleCheck />}
             {engine.kind === 'checking' && <LoaderCircle className="animate-spin" />}
             {engine.kind === 'missing' && <AlertCircle />}
             {engine.kind === 'ready' ? 'FFmpeg 已就绪' : engine.kind === 'checking' ? '正在检测 FFmpeg' : 'FFmpeg 需配置'}
-          </Badge>
+          </Badge></BlurFade>
         </div>
       </header>
 
-      {engine.kind === 'missing' && (
+      {engine.kind === 'missing' && <BlurFade>
         <Alert>
           <AlertCircle />
           <AlertTitle>需要 FFmpeg 和 FFprobe 才能封装</AlertTitle>
@@ -215,11 +262,18 @@ export function CoverPage({ engine, preferences, onChooseOutput, onOpenSettings,
             </div>
           </AlertDescription>
         </Alert>
+      </BlurFade>}
+      {issue && (
+        <motion.div key={issue} className="overflow-hidden" initial={animated ? { opacity: 0, height: 0 } : false}
+          animate={{ opacity: 1, height: 'auto' }} transition={{ duration: animated ? 0.22 : 0 }}>
+          <Alert variant="destructive"><AlertCircle /><AlertTitle>无法处理素材或输出</AlertTitle><AlertDescription className="break-words">{issue}</AlertDescription></Alert>
+        </motion.div>
       )}
-      {issue && <Alert variant="destructive"><AlertCircle /><AlertTitle>无法处理素材或输出</AlertTitle><AlertDescription className="break-words">{issue}</AlertDescription></Alert>}
 
       {!hasAssets ? (
-        <Empty className={cn('import-panel rounded-xl border border-dashed', dragging && 'drop-active')} data-drop-zone="initial">
+        <Empty className={cn('import-panel spotlight-surface rounded-xl border border-dashed', dragging && 'drop-active')}
+          onPointerMove={animated ? positionSpotlight : undefined} data-drop-zone="initial">
+          {beam}
           {dropHeader}
           <EmptyContent className="flex-row flex-wrap justify-center">
             <Button variant="outline" disabled={controlsBusy} onClick={() => pick('video')}><FileVideo />选择视频</Button>
@@ -235,11 +289,23 @@ export function CoverPage({ engine, preferences, onChooseOutput, onOpenSettings,
             </CardHeader>
             <CardContent>
               <div className="preview-stage">
-                {cover && !coverError ? (
-                  <img key={cover.id} src={cover.preview} alt="所选视频封面"
-                    onLoad={({ currentTarget }) => setCoverReview({ id: cover.id, info: currentTarget.naturalWidth + ' × ' + currentTarget.naturalHeight })}
-                    onError={() => setCoverReview({ id: cover.id, error: '封面无法读取，请换一张 PNG、JPG 或 JPEG。' })} />
-                ) : (
+                <AnimatePresence initial={animated}>
+                  {cover && !coverError && (
+                    <motion.img key={cover.id} src={cover.preview} alt="所选视频封面"
+                      initial={animated ? { opacity: 0, scale: 0.986 } : false}
+                      animate={{ opacity: coverSize ? 1 : 0, scale: 1 }} exit={{ opacity: 0 }}
+                      transition={{ duration: animated ? 0.23 : 0 }}
+                      onLoad={({ currentTarget }) => {
+                        if (currentCoverId.current === cover.id) {
+                          setCoverReview({ id: cover.id, info: currentTarget.naturalWidth + ' × ' + currentTarget.naturalHeight })
+                        }
+                      }}
+                      onError={() => {
+                        if (currentCoverId.current === cover.id) setCoverReview({ id: cover.id, error: '封面无法读取，请换一张 PNG、JPG 或 JPEG。' })
+                      }} />
+                  )}
+                </AnimatePresence>
+                {(!cover || coverError) && (
                   <Empty className="h-full border-0 p-4">
                     <EmptyHeader>
                       <EmptyMedia variant="icon"><ImageIcon /></EmptyMedia>
@@ -250,6 +316,7 @@ export function CoverPage({ engine, preferences, onChooseOutput, onOpenSettings,
                 )}
               </div>
               <div className={cn('replacement-drop text-muted-foreground mt-3', dragging && 'drop-active')} data-drop-zone="replacement">
+                {beam}
                 <Upload className="size-3.5" />{dragging ? '松开鼠标，导入素材' : '拖入文件以导入或替换素材'}
               </div>
             </CardContent>
@@ -270,24 +337,24 @@ export function CoverPage({ engine, preferences, onChooseOutput, onOpenSettings,
               </div>
             </CardContent>
             <CardFooter className="mt-1 flex flex-col items-stretch gap-3">
-              <Button disabled={!canExport} onClick={() => void exportCover()}>
+              <ActionButton shimmer="ready" disabled={!canExport} onClick={() => void exportCover()}>
                 {exporting ? <LoaderCircle className="animate-spin" /> : <ArrowDownToLine />}
                 {exporting ? '正在封装' : '封装封面'}
-              </Button>
+              </ActionButton>
               {exporting && (
-                <div className="grid gap-2" role="status">
+                <div className="grid gap-2 export-progress" role="status">
                   <span className="text-muted-foreground text-xs tabular-nums">正在封装 · {progress}%</span>
                   <Progress value={progress} aria-label="封装进度" />
                 </div>
               )}
               {output && (
-                <div className="grid gap-2">
+                <BlurFade key={output} className="grid gap-2">
                   <div className="min-w-0 text-sm" role="status">
-                    <p className="flex items-center gap-2"><Check className="size-4" />封装完成</p>
+                    <p className="flex items-center gap-2"><Check className="result-check size-4" />封装完成</p>
                     <p className="text-muted-foreground mt-1 truncate text-xs" title={output}>{output.split(/[\\/]/).at(-1)}</p>
                   </div>
                   <Button variant="outline" onClick={() => void api.revealOutput()}><FolderOpen />在资源管理器中查看</Button>
-                </div>
+                </BlurFade>
               )}
             </CardFooter>
           </Card>

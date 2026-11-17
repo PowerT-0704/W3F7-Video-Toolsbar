@@ -1,7 +1,17 @@
-import { ArrowUpRight, CodeXml, ExternalLink, Globe, Heart, MessageCircle, MonitorPlay, QrCode, Wifi } from 'lucide-react'
+import { useState } from 'react'
+import { Dialog } from 'radix-ui'
+import { AlertCircle, ArrowUpRight, CodeXml, ExternalLink, Globe, Heart, Maximize2, QrCode, RefreshCw, Wifi, X } from 'lucide-react'
 import { version } from '../../package.json'
 import avatar from '../assets/w3f7-avatar.jpg'
-import { api } from '../workspace'
+import bilibili from '../assets/bilibili.svg'
+import qq from '../assets/qq.svg'
+import sponsor from '../assets/w3f7-sponsor.png'
+import { aboutCopy } from './about-copy'
+import { api, errorText } from '../workspace'
+import type { ExternalLinkId } from '../bridge'
+import { ActionButton } from '../ui/action-button'
+import { BlurFade } from '../ui/blur-fade'
+import { Alert, AlertDescription } from '../ui/shadcn/alert'
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/shadcn/avatar'
 import { Badge } from '../ui/shadcn/badge'
 import { Button } from '../ui/shadcn/button'
@@ -13,66 +23,110 @@ const projects = [
 ] as const
 
 const community = [
-  { name: '个人主页', icon: Globe },
-  { name: 'B 站', icon: MonitorPlay },
-  { name: '粉丝群', icon: MessageCircle },
+  { id: 'website', name: '个人主页', image: undefined },
+  { id: 'bilibili', name: 'B 站', image: bilibili },
+  { id: 'qq', name: 'QQ 粉丝群', image: qq },
 ] as const
 
+function SponsorCard() {
+  return (
+    <Card className="min-w-0 gap-3">
+      <CardHeader><CardTitle className="flex items-center gap-2"><Heart className="text-muted-foreground size-4" />支持作者</CardTitle></CardHeader>
+      <CardContent>
+        <Dialog.Root>
+          <Dialog.Trigger asChild>
+            <Button variant="outline" className="sponsor-preview" aria-label="放大赞助收款码">
+              <img src={sponsor} alt="W3F7 个人赞助收款码" />
+              <span><Maximize2 />放大收款码</span>
+            </Button>
+          </Dialog.Trigger>
+          <Dialog.Portal>
+            <Dialog.Overlay className="qr-overlay" />
+            <Dialog.Content className="qr-dialog" aria-describedby={undefined}>
+              <div className="flex items-center justify-between gap-3">
+                <Dialog.Title className="font-semibold">W3F7 个人赞助</Dialog.Title>
+                <Dialog.Close asChild><Button type="button" size="icon-sm" variant="ghost" aria-label="关闭收款码"><X /></Button></Dialog.Close>
+              </div>
+              <img src={sponsor} alt="放大的 W3F7 个人赞助收款码" />
+            </Dialog.Content>
+          </Dialog.Portal>
+        </Dialog.Root>
+      </CardContent>
+    </Card>
+  )
+}
+
 export function AboutPage() {
+  const [notice, setNotice] = useState(0)
+  const [linkError, setLinkError] = useState('')
+
+  function openLink(id: ExternalLinkId) {
+    setLinkError('')
+    void api.openLink(id).catch((reason) => setLinkError(errorText(reason)))
+  }
+
   return (
     <section className="page-layout">
       <header className="page-header">
         <div className="grid gap-1.5"><h1>关于</h1><p>W3F7のVideo_Toolsbar</p></div>
         <Badge variant="outline">v{version}</Badge>
       </header>
+      {linkError && <BlurFade><Alert variant="destructive"><AlertCircle /><AlertDescription>{linkError}</AlertDescription></Alert></BlurFade>}
       <div className="about-grid">
-        <Card className="min-w-0 gap-5">
-          <CardHeader className="flex items-center gap-4">
-            <Avatar className="size-16 rounded-xl">
-              <AvatarImage src={avatar} alt="W3F7 的 GitHub 头像" />
-              <AvatarFallback className="rounded-xl">W3</AvatarFallback>
-            </Avatar>
-            <div className="min-w-0 space-y-1">
-              <CardTitle className="text-xl">W3F7</CardTitle>
-              <CardDescription>@PowerT-0704</CardDescription>
-            </div>
-          </CardHeader>
-          <CardContent className="text-muted-foreground grid max-w-prose gap-4 text-sm leading-relaxed">
-            <p>我在成都理工大学宜宾校区读书。平时喜欢做顺手的桌面小工具，也会写 After Effects 脚本，把视频制作里重复的操作交给脚本处理。</p>
-            <p>我把做出来的工具和实验放在 GitHub 上。这个视频工具箱从 MP4 封面封装开始，先把拖文件、换封面和导出的流程做顺手，再逐步加入其他视频处理功能。</p>
-            <Button className="justify-self-start" variant="outline" onClick={() => void api.openLink('github')}><CodeXml />查看 GitHub 主页<ArrowUpRight /></Button>
-          </CardContent>
-        </Card>
-        <Card className="min-w-0">
-          <CardHeader><CardTitle className="flex items-center gap-2"><Heart className="text-muted-foreground size-4" />支持作者</CardTitle></CardHeader>
-          <CardContent>
-            <div className="border-border text-muted-foreground grid min-h-32 place-items-center rounded-lg border border-dashed text-sm">赞助收款码待补</div>
-          </CardContent>
-        </Card>
+        <BlurFade>
+          <Card className="min-w-0 gap-5">
+            <BlurFade delay={0.04}>
+              <CardHeader className="flex items-center gap-4">
+                <Avatar className="size-16 rounded-xl">
+                  <AvatarImage src={avatar} alt="W3F7 的 GitHub 头像" />
+                  <AvatarFallback className="rounded-xl">W3</AvatarFallback>
+                </Avatar>
+                <div className="min-w-0 space-y-1">
+                  <CardTitle className="text-xl">W3F7</CardTitle>
+                  <CardDescription>@PowerT-0704</CardDescription>
+                </div>
+              </CardHeader>
+            </BlurFade>
+            <CardContent className="text-muted-foreground grid max-w-prose gap-4 text-sm leading-relaxed">
+              <p className="whitespace-pre-line" data-about-copy>{aboutCopy}</p>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" onClick={() => openLink('github')}><CodeXml />查看 GitHub 主页<ArrowUpRight /></Button>
+                <ActionButton variant="outline" onClick={() => setNotice((count) => count + 1)}><RefreshCw />检查更新</ActionButton>
+              </div>
+              <div role="status">{notice > 0 && <BlurFade key={notice}>更新服务待接入</BlurFade>}</div>
+            </CardContent>
+          </Card>
+        </BlurFade>
+        <BlurFade delay={0.06}><SponsorCard /></BlurFade>
       </div>
 
-      <Card>
-        <CardHeader><CardTitle>GitHub 项目</CardTitle></CardHeader>
-        <CardContent className="grid gap-2">
-          {projects.map(({ id, name, description, icon: Icon }) => (
-            <Button key={id} variant="outline" className="h-auto min-w-0 justify-start gap-3 p-3 text-left"
-              onClick={() => void api.openLink(id)}>
-              <Icon /><span className="min-w-0 grow space-y-0.5 whitespace-normal">
-                <span className="block font-medium">{name}</span><span className="text-muted-foreground block text-xs">{description}</span>
-              </span><ExternalLink className="text-muted-foreground" />
-            </Button>
-          ))}
-        </CardContent>
-      </Card>
+      <BlurFade delay={0.1}>
+        <Card className="gap-3 py-4">
+          <CardHeader><CardTitle>其他链接</CardTitle></CardHeader>
+          <CardContent className="community-grid">
+            {community.map(({ id, name, image }) => (
+              <Button key={id} variant="outline" className="community-link justify-start" onClick={() => openLink(id)}>
+                {image ? <img src={image} alt="" /> : <Globe />}<span className="grow text-left">{name}</span><ArrowUpRight />
+              </Button>
+            ))}
+          </CardContent>
+        </Card>
+      </BlurFade>
 
-      <Card className="gap-3 py-4">
-        <CardHeader><CardTitle>其他链接</CardTitle></CardHeader>
-        <CardContent className="community-grid">
-          {community.map(({ name, icon: Icon }) => (
-            <div key={name} className="text-muted-foreground flex items-center gap-2 text-sm"><Icon className="size-4" />{name}<span className="text-xs">待补</span></div>
-          ))}
-        </CardContent>
-      </Card>
+      <BlurFade delay={0.15}>
+        <Card>
+          <CardHeader><CardTitle>GitHub 项目</CardTitle></CardHeader>
+          <CardContent className="grid gap-2">
+            {projects.map(({ id, name, description, icon: Icon }) => (
+              <Button key={id} variant="outline" className="h-auto min-w-0 justify-start gap-3 p-3 text-left" onClick={() => openLink(id)}>
+                <Icon /><span className="min-w-0 grow space-y-0.5 whitespace-normal">
+                  <span className="block font-medium">{name}</span><span className="text-muted-foreground block text-xs">{description}</span>
+                </span><ExternalLink className="text-muted-foreground" />
+              </Button>
+            ))}
+          </CardContent>
+        </Card>
+      </BlurFade>
     </section>
   )
 }

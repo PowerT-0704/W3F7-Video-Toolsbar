@@ -1,5 +1,12 @@
 # W3F7のVideo_Toolsbar 开发路线图
 
+## v0.1.0-preview.3 · 起始页、动效与开发日志
+
+- 新增启动动画、起始页和开发日志。侧栏分为 Tools_list、About APP 与 More。
+- 恢复 Blur Fade、Border Beam 和按钮扫光，补充拖入、替换、导出和赞助弹层的动效。减少动效跟随 Windows 和应用设置。
+- 关于页加入原文简介、离线收款码、社交入口与检查更新预留按钮。
+- 后续起始页可增加单独设计的循环动画。
+
 ## v0.1.0-preview.2 · 界面重做
 
 - 采用 shadcn/ui New York 与 Neutral 暗色主题。顶部融入窗口，设置和关于移到侧栏底部。
