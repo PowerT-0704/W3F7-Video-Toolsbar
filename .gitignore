@@ -1,0 +1,9 @@
+/test_assets/
+/prompt.txt
+/backups/
+/artifacts/
+/dist/
+/dist-electron/
+/node_modules/
+/*_cover*.mp4
+/.w3f7-*.partial.mp4
