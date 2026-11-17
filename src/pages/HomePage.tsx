@@ -27,7 +27,6 @@ export function HomePage({ onOpenCover, onOpenLog }: { onOpenCover: () => void; 
     <section className="page-layout home-page">
       <div className="home-hero spotlight-surface" onPointerMove={enabled ? positionSpotlight : undefined}>
         <div className="home-copy">
-          <BlurFade><Badge variant="outline">v{version}</Badge></BlurFade>
           <BlurFade delay={0.045}>
             <h1>W3F7の<span>Video_Toolsbar</span></h1>
             <p>在本地处理视频。拖入 MP4 和一张图片，即可写入自定义封面，保留原始画质与音轨。</p>
@@ -43,8 +42,12 @@ export function HomePage({ onOpenCover, onOpenLog }: { onOpenCover: () => void; 
           <div className="film-emblem" aria-hidden="true"><Film /></div>
         </BlurFade>
       </div>
-      <BlurFade delay={0.13}>
-        <footer className="home-copyright">© 2026 W3F7</footer>
+      <BlurFade className="home-footer" delay={0.13}>
+        <footer>
+          <span>W3F7のVideo_Toolsbar</span>
+          <Badge variant="outline">v{version}</Badge>
+          <span>© 2026 W3F7</span>
+        </footer>
       </BlurFade>
     </section>
   )

@@ -33,7 +33,7 @@ try {
     electronZipDir: process.env.W3F7_ELECTRON_ZIP_DIR || undefined,
     asar: true, extraResource: resolve('core'), prune: false,
   })
-  for (const entry of ['W3F7-Video-Cover.bat', 'README.md', 'ROADMAP.md']) {
+  for (const entry of ['W3F7-Video-Cover.bat', 'README.md', 'ROADMAP.md', 'LICENSE']) {
     await copyFile(entry, join(bundle, entry))
   }
   await cp('docs', join(bundle, 'docs'), { recursive: true })

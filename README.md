@@ -4,9 +4,13 @@
 
 **给 MP4 装上自己的封面，保留视频和音频的原始编码。**
 
-![版本](https://img.shields.io/badge/preview-0.1.0--preview.4-525252)
-![平台](https://img.shields.io/badge/Windows-x64-577ac6)
-![引擎](https://img.shields.io/badge/engine-FFmpeg-4e9a76)
+[![正式版](https://img.shields.io/github/v/release/PowerT-0704/W3F7-Video-Toolsbar?label=release)](https://github.com/PowerT-0704/W3F7-Video-Toolsbar/releases/latest)
+[![Release 附件累计下载](https://img.shields.io/github/downloads/PowerT-0704/W3F7-Video-Toolsbar/total?label=downloads)](https://github.com/PowerT-0704/W3F7-Video-Toolsbar/releases)
+[![平台 Windows x64](https://img.shields.io/badge/Windows-x64-577ac6)](https://github.com/PowerT-0704/W3F7-Video-Toolsbar/releases/latest)
+[![MIT 许可](https://img.shields.io/badge/license-MIT-805abc)](LICENSE)
+[![FFmpeg](https://img.shields.io/badge/engine-FFmpeg-4e9a76)](https://ffmpeg.org/download.html#build-windows)
+
+[下载 Windows x64 便携版](https://github.com/PowerT-0704/W3F7-Video-Toolsbar/releases/download/v1.0.0/W3F7-Video-Toolsbar-1.0.0-win-x64.zip) · [正式版发布说明与校验值](https://github.com/PowerT-0704/W3F7-Video-Toolsbar/releases/tag/v1.0.0)
 
 [快速开始](#快速开始) · [资源管理器缩略图](#资源管理器缩略图) · [开发路线图](ROADMAP.md) · [验收记录](docs/verification.md)
 
@@ -29,7 +33,7 @@
 
 完整解压 Windows x64 ZIP 后打开 `W3F7-Video-Toolsbar.exe`。启动后进入起始页，可从首页或侧栏打开「视频封面封装」。FFmpeg 和 FFprobe 在后台自动检测，结果显示在工具页。
 
-将鼠标移到左侧图标栏可展开导航，移开后会收回。用顶部按钮或 `Ctrl+B` 固定展开。窄窗口用顶部按钮打开抽屉。在「设置 → 外观」可以切换深色和浅色，也可以减少动效。主题选择会在下次启动时恢复。
+将鼠标移到左侧图标栏可展开导航，移开后会收回。用顶部按钮或 `Ctrl+B` 固定展开，点击工作区空白处可以收回。窄窗口用顶部按钮打开抽屉。在「设置 → 外观」可以切换深色和浅色，也可以减少动效。主题选择会在下次启动时恢复。
 
 把 MP4 和封面拖入虚线区域，可以一起拖，也可以逐个拖。页面会识别视频和 PNG、JPG、JPEG 封面，并分别显示到素材列表。也可以用「选择视频」「选择封面」导入。确认预览及保存位置，点击「封装封面」。完成后点击「在资源管理器中查看」。
 
@@ -71,5 +75,7 @@ npm start
 ## 致谢
 
 界面使用 [shadcn/ui](https://github.com/shadcn-ui/ui) 官方 New York 组件和 Neutral 暗色主题，搭配 [Geist](https://github.com/vercel/geist-font) 字体。关于页的头像来自 [W3F7 的 GitHub 主页](https://github.com/PowerT-0704)，随应用本地打包。切页、拖入和按钮反馈使用 Motion 和 Magic UI，柔光参照 React Bits。第三方许可见 [licenses](licenses/)。
+
+项目源码采用 [MIT 许可](LICENSE)。第三方组件、字体和随附图片适用各自的权利声明。
 
 **作者** [W3F7 · PowerT-0704](https://github.com/PowerT-0704)

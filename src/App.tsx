@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import type { CSSProperties } from 'react'
+import type { CSSProperties, MouseEvent } from 'react'
 import { Clapperboard, History, House, Info, Settings2 } from 'lucide-react'
 import { LayoutGroup, motion } from 'motion/react'
 import type { Page, Preferences } from './bridge'
@@ -13,7 +13,7 @@ import { useHoverSidebar } from './ui/hover-sidebar'
 import { MotionEnabledContext, useMotionEnabled, useSystemReducedMotion } from './ui/motion-policy'
 import {
   Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupLabel, SidebarInset, SidebarMenu, SidebarMenuButton,
-  SidebarMenuItem, SidebarProvider, SidebarTrigger, useSidebar,
+  SidebarMenuItem, SidebarProvider, SidebarSeparator, SidebarTrigger, useSidebar,
 } from './ui/shadcn/sidebar'
 
 const defaultPreferences: Preferences = { toolDirectory: '', outputDirectory: '', reduceMotion: false, theme: initialTheme }
@@ -66,6 +66,14 @@ export function App() {
   const outgoing = reduced ? undefined : navigation.outgoing
   const ready = preferencesLoaded && (startupFinished || reduced)
   const sidebar = useHoverSidebar()
+
+  function dismissSidebarOnBackground(event: MouseEvent<HTMLElement>) {
+    const target = event.target
+    if (event.defaultPrevented || event.button !== 0 || !(target instanceof HTMLElement)) return
+    if (target === event.currentTarget || target.matches('.workspace-container, .page-viewport, .page-transition, .page-layout, .page-header, .home-hero')) {
+      sidebar.dismissPin()
+    }
+  }
 
   function navigate(next: Page) {
     if (next === page) return
@@ -181,10 +189,12 @@ export function App() {
                 <SidebarGroup>
                   <SidebarMenu aria-label="起始页"><NavigationItem page="home" current={page} onNavigate={navigate} /></SidebarMenu>
                 </SidebarGroup>
+                <SidebarSeparator />
                 <SidebarGroup>
                   <SidebarGroupLabel>Tools_list</SidebarGroupLabel>
                   <SidebarMenu aria-label="Tools_list"><NavigationItem page="cover" current={page} onNavigate={navigate} /></SidebarMenu>
                 </SidebarGroup>
+                <SidebarSeparator />
                 <SidebarGroup>
                   <SidebarGroupLabel>About APP</SidebarGroupLabel>
                   <SidebarMenu aria-label="About APP"><NavigationItem page="changelog" current={page} onNavigate={navigate} /></SidebarMenu>
@@ -200,7 +210,7 @@ export function App() {
             </Sidebar>
           </LayoutGroup>
 
-          <SidebarInset ref={main} className="desktop-main">
+          <SidebarInset ref={main} className="desktop-main" onClick={sidebar.pinned ? dismissSidebarOnBackground : undefined}>
             <div className="workspace-container">
               {(Object.keys(views) as Page[]).map((id) => {
                 const phase = id === page ? 'active' : id === outgoing?.page ? 'exiting' : 'idle'

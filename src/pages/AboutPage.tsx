@@ -32,7 +32,7 @@ function SponsorCard() {
   return (
     <Card className="min-w-0 gap-3">
       <CardHeader><CardTitle className="flex items-center gap-2"><Heart className="text-muted-foreground size-4" />支持作者</CardTitle></CardHeader>
-      <CardContent>
+      <CardContent className="grid grow">
         <Dialog.Root>
           <Dialog.Trigger asChild>
             <Button variant="outline" className="sponsor-preview" aria-label="放大赞助收款码">

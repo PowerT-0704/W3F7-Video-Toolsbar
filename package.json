@@ -1,6 +1,7 @@
 {
   "name": "w3f7-video-toolsbar",
-  "version": "0.1.0-preview.4",
+  "version": "1.0.0",
+  "license": "MIT",
   "private": true,
   "type": "module",
   "main": "dist-electron/main.cjs",

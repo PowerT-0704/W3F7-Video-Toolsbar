@@ -56,5 +56,12 @@ export function useHoverSidebar() {
     setPinned((value) => !value)
   }
 
-  return { mobile, open: pinned || hovered, pinned, togglePin, panel, enter, leave, blur }
+  function dismissPin() {
+    if (mobile || !pinned) return
+    window.clearTimeout(timer.current)
+    setHovered(false)
+    setPinned(false)
+  }
+
+  return { mobile, open: pinned || hovered, pinned, togglePin, dismissPin, panel, enter, leave, blur }
 }
