@@ -224,7 +224,8 @@ export function CoverPage({ active, engine, preferences, onChooseOutput, onOpenS
     </EmptyHeader>
   )
   const issue = [error, videoError, coverError].filter(Boolean).join(' ')
-  const beam = animated && dragging && <BorderBeam size={105} duration={2.2} borderWidth={1.5} colorFrom="#ffffff" colorTo="#777777" />
+  const beam = animated && dragging && <BorderBeam size={105} duration={2.2} borderWidth={1.5}
+    colorFrom="var(--drop-beam-start)" colorTo="var(--drop-beam-end)" />
 
   return (
     <section className="page-layout" onDragEnter={onDragEnter} onDragLeave={onDragLeave} onDrop={onDrop}

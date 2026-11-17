@@ -6,7 +6,7 @@ import { stat, readFile, writeFile, rename } from 'node:fs/promises'
 import { basename, dirname, extname, isAbsolute, join } from 'node:path'
 import { createInterface } from 'node:readline'
 import { pathToFileURL } from 'node:url'
-import type { Asset, AssetKind, Preferences, ToolStatus, VideoDetails } from '../src/bridge'
+import type { Asset, AssetKind, Preferences, Theme, ToolStatus, VideoDetails } from '../src/bridge'
 
 type DirectorySetting = 'toolDirectory' | 'outputDirectory'
 type CoreRequest =
@@ -14,7 +14,11 @@ type CoreRequest =
   | { operation: 'inspect'; video: string }
   | { operation: 'export'; video: string; cover: string; outputDirectory: string }
 
-const defaultPreferences: Preferences = { toolDirectory: '', outputDirectory: '', reduceMotion: false }
+const defaultPreferences: Preferences = { toolDirectory: '', outputDirectory: '', reduceMotion: false, theme: 'dark' }
+const titleBars: Record<Theme, { color: string; symbolColor: string; height: number }> = {
+  dark: { color: '#0a0a0a', symbolColor: '#d4d4d4', height: 40 },
+  light: { color: '#f3f3f6', symbolColor: '#262630', height: 40 },
+}
 const links = {
   website: "https://w3f7.cn",
   bilibili: "https://space.bilibili.com/1135924891?spm_id_from=333.1007.0.0",
@@ -52,6 +56,7 @@ async function loadPreferences() {
       toolDirectory: typeof saved.toolDirectory === 'string' && isAbsolute(saved.toolDirectory) ? saved.toolDirectory : '',
       outputDirectory: typeof saved.outputDirectory === 'string' && isAbsolute(saved.outputDirectory) ? saved.outputDirectory : '',
       reduceMotion: saved.reduceMotion === true,
+      theme: saved.theme === 'light' ? 'light' : 'dark',
     }
   } catch {
     preferences = defaultPreferences
@@ -171,6 +176,14 @@ function registerHandlers() {
 
   handle('settings:get', () => preferences)
   handle('settings:motion', (enabled: boolean) => savePreference('reduceMotion', enabled === true))
+  handle('settings:theme', async (theme: unknown) => {
+    if (theme !== 'dark' && theme !== 'light') throw new Error('未知外观主题。')
+    const saved = await savePreference('theme', theme)
+    const titleBar = titleBars[saved.theme]
+    appWindow?.setBackgroundColor(titleBar.color)
+    appWindow?.setTitleBarOverlay(titleBar)
+    return saved
+  })
   handle('settings:choose', async (key: unknown) => {
     const setting = requireDirectorySetting(key)
     const result = await dialog.showOpenDialog(appWindow!, {
@@ -210,17 +223,19 @@ function registerHandlers() {
 }
 
 function createWindow() {
-  appWindow = new BrowserWindow({
+  const titleBar = titleBars[preferences.theme]
+  const window = new BrowserWindow({
     width: 1150, height: 774, minWidth: 750, minHeight: 610, show: false,
-    title: 'W3F7のVideo_Toolsbar', backgroundColor: '#0a0a0a', autoHideMenuBar: true,
+    title: 'W3F7のVideo_Toolsbar', backgroundColor: titleBar.color, autoHideMenuBar: true,
     titleBarStyle: 'hidden',
-    titleBarOverlay: { color: '#0a0a0a', symbolColor: '#d4d4d4', height: 40 },
+    titleBarOverlay: titleBar,
     webPreferences: { preload: join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true },
   })
+  appWindow = window
   appWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
   appWindow.webContents.on('will-navigate', (event) => event.preventDefault())
   appWindow.webContents.session.setPermissionRequestHandler((_contents, _permission, callback) => callback(false))
-  appWindow.once('ready-to-show', () => appWindow?.show())
+  const painted = new Promise<void>((resolve) => window.once('ready-to-show', resolve))
   appWindow.on('close', (event) => {
     if (exporting) {
       event.preventDefault()
@@ -228,7 +243,10 @@ function createWindow() {
     }
   })
   appWindow.on('closed', () => { appWindow = null })
-  void appWindow.loadFile(join(app.getAppPath(), 'dist', 'index.html'))
+  const loaded = window.loadFile(join(app.getAppPath(), 'dist', 'index.html'), { query: { theme: preferences.theme } })
+  void Promise.all([painted, loaded]).then(() => {
+    if (!window.isDestroyed()) window.show()
+  }).catch((reason) => console.error('无法加载应用窗口。', reason))
 }
 
 if (app.requestSingleInstanceLock()) {

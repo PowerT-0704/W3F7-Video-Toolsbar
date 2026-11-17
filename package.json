@@ -1,6 +1,6 @@
 {
   "name": "w3f7-video-toolsbar",
-  "version": "0.1.0-preview.3",
+  "version": "0.1.0-preview.4",
   "private": true,
   "type": "module",
   "main": "dist-electron/main.cjs",
@@ -8,7 +8,9 @@
   "scripts": {
     "build:bat": "node scripts/build-bat.mjs",
     "typecheck": "tsc --noEmit",
-    "build": "npm run build:bat && npm run typecheck && vite build && node scripts/build-electron.mjs",
+    "build:app": "npm run typecheck && vite build && node scripts/build-electron.mjs",
+    "build": "npm run build:bat && npm run build:app",
+    "prestart": "npm run build:app",
     "start": "electron .",
     "package:win": "npm run build && node scripts/package-win.mjs"
   },

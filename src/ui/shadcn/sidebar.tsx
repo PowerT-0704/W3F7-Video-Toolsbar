@@ -151,6 +151,7 @@ function Sidebar({
   collapsible = "offcanvas",
   className,
   children,
+  ref,
   ...props
 }: React.ComponentProps<"div"> & {
   side?: "left" | "right"
@@ -167,6 +168,7 @@ function Sidebar({
           "flex h-full w-(--sidebar-width) flex-col bg-sidebar text-sidebar-foreground",
           className
         )}
+        ref={ref}
         {...props}
       >
         {children}
@@ -222,6 +224,7 @@ function Sidebar({
       />
       <div
         data-slot="sidebar-container"
+        ref={ref}
         className={cn(
           "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,width] duration-200 ease-linear md:flex",
           side === "left"
@@ -252,7 +255,7 @@ function SidebarTrigger({
   onClick,
   ...props
 }: React.ComponentProps<typeof Button>) {
-  const { toggleSidebar } = useSidebar()
+  const { toggleSidebar, isMobile, open, openMobile } = useSidebar()
 
   return (
     <Button
@@ -260,6 +263,7 @@ function SidebarTrigger({
       data-slot="sidebar-trigger"
       variant="ghost"
       size="icon"
+      aria-expanded={isMobile ? openMobile : open}
       className={cn("size-7", className)}
       onClick={(event) => {
         onClick?.(event)

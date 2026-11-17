@@ -11,6 +11,15 @@ const releases = [
     version,
     date: import.meta.env.VITE_BUILT_AT as string,
     changes: [
+      '恢复首版切页节奏，增加旧页离场和侧栏选中项的弹簧滑动。',
+      '新增浅色主题，支持记住配色并同步 Windows 原生标题栏。',
+      '桌面侧栏可悬停展开、离开收回，也可手动固定。',
+    ],
+  },
+  {
+    version: '0.1.0-preview.3',
+    date: '2026-11-17T14:05:49+08:00',
+    changes: [
       '新增启动动画、起始页和开发日志，侧栏按 Tools_list、About APP、More 分组。',
       '恢复页面切换、拖入光效和按钮扫光，增加素材、导出、设置和收款码的交互反馈。',
       '按作者原文更新关于页，加入赞助收款码、社交链接和检查更新入口。',

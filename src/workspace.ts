@@ -1,6 +1,11 @@
-import type { ToolStatus } from './bridge'
+import type { Theme, ToolStatus } from './bridge'
 
 export const api = window.videoTools
+export const initialTheme: Theme = new URLSearchParams(window.location.search).get('theme') === 'light' ? 'light' : 'dark'
+
+export function applyTheme(theme: Theme) {
+  document.documentElement.classList.toggle('dark', theme === 'dark')
+}
 
 export type EngineStatus =
   | { kind: 'checking' }

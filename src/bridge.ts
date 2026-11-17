@@ -1,5 +1,6 @@
 export type AssetKind = 'video' | 'cover'
 export type Page = 'home' | 'cover' | 'changelog' | 'settings' | 'about'
+export type Theme = 'dark' | 'light'
 export type ExternalLinkId = 'github' | 'ffmpeg' | 'icaros' | 'ezqr' | 'campuslink' |
   'website' | 'bilibili' | 'qq' | 'shadcn' | 'magicui' | 'reactbits'
 export interface Asset {
@@ -25,6 +26,7 @@ export interface Preferences {
   toolDirectory: string
   outputDirectory: string
   reduceMotion: boolean
+  theme: Theme
 }
 export interface DesktopAPI {
   pick: (kind: AssetKind) => Promise<Asset | null>
@@ -32,6 +34,7 @@ export interface DesktopAPI {
   inspect: (id: string) => Promise<VideoDetails>
   settings: () => Promise<Preferences>
   setReducedMotion: (enabled: boolean) => Promise<Preferences>
+  setTheme: (theme: Theme) => Promise<Preferences>
   chooseDirectory: (setting: 'toolDirectory' | 'outputDirectory') => Promise<Preferences>
   resetDirectory: (setting: 'toolDirectory' | 'outputDirectory') => Promise<Preferences>
   detect: () => Promise<ToolStatus>

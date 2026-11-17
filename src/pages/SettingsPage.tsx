@@ -1,4 +1,4 @@
-import { AlertCircle, ArrowUpRight, FolderOpen, MonitorPlay, RotateCw } from 'lucide-react'
+import { AlertCircle, ArrowUpRight, FolderOpen, MonitorPlay, Moon, RotateCw, Sun } from 'lucide-react'
 import type { Preferences } from '../bridge'
 import { api, type EngineStatus } from '../workspace'
 import { Alert, AlertDescription } from '../ui/shadcn/alert'
@@ -9,8 +9,8 @@ import { Switch } from '../ui/shadcn/switch'
 
 type DirectorySetting = 'toolDirectory' | 'outputDirectory'
 
-export function SettingsPage({ preferences, engine, error, onSave, onRetry }: {
-  preferences: Preferences; engine: EngineStatus; error: string
+export function SettingsPage({ preferences, engine, error, systemReduced, onSave, onRetry }: {
+  preferences: Preferences; engine: EngineStatus; error: string; systemReduced: boolean
   onSave: (action: () => Promise<Preferences>, recheck?: boolean) => Promise<void>
   onRetry: () => void
 }) {
@@ -27,9 +27,35 @@ export function SettingsPage({ preferences, engine, error, onSave, onRetry }: {
   return (
     <section className="page-layout settings-layout">
       <header className="page-header">
-        <div className="grid gap-1.5"><h1>设置</h1><p>管理 FFmpeg、默认输出位置和界面动效。</p></div>
+        <div className="grid gap-1.5"><h1>设置</h1><p>管理外观、动效、FFmpeg 和默认输出位置。</p></div>
       </header>
       {error && <Alert variant="destructive"><AlertCircle /><AlertDescription>{error}</AlertDescription></Alert>}
+      <Card>
+        <CardHeader><CardTitle>外观</CardTitle></CardHeader>
+        <CardContent className="grid gap-4">
+          <div className="setting-row">
+            <span className="text-sm font-medium">主题</span>
+            <div className="theme-options" role="group" aria-label="主题">
+              <Button size="sm" variant="ghost" aria-pressed={preferences.theme === 'dark'}
+                onClick={() => void onSave(() => api.setTheme('dark'))}><Moon />深色</Button>
+              <Button size="sm" variant="ghost" aria-pressed={preferences.theme === 'light'}
+                onClick={() => void onSave(() => api.setTheme('light'))}><Sun />浅色</Button>
+            </div>
+          </div>
+          <Separator />
+          <div className="setting-row">
+            <div>
+              <label htmlFor="reduce-motion" className="text-sm font-medium">减少动效</label>
+              <p id="motion-description" className="text-muted-foreground text-sm">{systemReduced
+                ? 'Windows 已启用减少动效，应用正在遵循系统偏好。'
+                : 'Windows 动画已开启。可在此单独减少应用动效。'}</p>
+            </div>
+            <Switch id="reduce-motion" aria-label="减少动效" aria-describedby="motion-description" checked={preferences.reduceMotion}
+              onCheckedChange={(value) => void onSave(() => api.setReducedMotion(value))} />
+          </div>
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader><CardTitle>FFmpeg</CardTitle><CardDescription>使用同一个 FFmpeg 构建中的 ffmpeg.exe 和 ffprobe.exe。</CardDescription></CardHeader>
         <CardContent className="grid gap-4">
@@ -59,8 +85,8 @@ export function SettingsPage({ preferences, engine, error, onSave, onRetry }: {
       </Card>
 
       <Card>
-        <CardHeader><CardTitle>输出与显示</CardTitle></CardHeader>
-        <CardContent className="grid gap-4">
+        <CardHeader><CardTitle>输出</CardTitle></CardHeader>
+        <CardContent>
           <div className="setting-row">
             <div className="min-w-0">
               <p className="text-sm font-medium">默认输出文件夹</p>
@@ -70,15 +96,6 @@ export function SettingsPage({ preferences, engine, error, onSave, onRetry }: {
               {preferences.outputDirectory && <Button variant="ghost" onClick={() => resetDirectory('outputDirectory')}>恢复默认</Button>}
               <Button variant="outline" onClick={() => chooseDirectory('outputDirectory')}><FolderOpen />选择文件夹</Button>
             </div>
-          </div>
-          <Separator />
-          <div className="setting-row">
-            <div>
-              <label htmlFor="reduce-motion" className="text-sm font-medium">减少动效</label>
-              <p className="text-muted-foreground text-sm">减少界面过渡，保留进度和结果反馈。</p>
-            </div>
-            <Switch id="reduce-motion" aria-label="减少动效" checked={preferences.reduceMotion}
-              onCheckedChange={(value) => void onSave(() => api.setReducedMotion(value))} />
           </div>
         </CardContent>
       </Card>

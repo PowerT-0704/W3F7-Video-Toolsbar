@@ -7,6 +7,7 @@ const api: DesktopAPI = {
   inspect: (id) => ipcRenderer.invoke('assets:inspect', id),
   settings: () => ipcRenderer.invoke('settings:get'),
   setReducedMotion: (enabled) => ipcRenderer.invoke('settings:motion', enabled),
+  setTheme: (theme) => ipcRenderer.invoke('settings:theme', theme),
   chooseDirectory: (setting) => ipcRenderer.invoke('settings:choose', setting),
   resetDirectory: (setting) => ipcRenderer.invoke('settings:reset', setting),
   detect: () => ipcRenderer.invoke('settings:detect'),
