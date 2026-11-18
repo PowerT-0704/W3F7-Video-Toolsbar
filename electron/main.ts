@@ -8,6 +8,7 @@ import { createInterface } from 'node:readline'
 import { pathToFileURL } from 'node:url'
 import type { Asset, AssetKind, Preferences, Theme, ToolCheck, ToolStatus, VideoDetails } from '../src/bridge'
 import { FrameStore, streamVideo } from './frames.cjs'
+import { MediaCache } from './media-cache.cjs'
 import { createUpdateChecker } from './updates.cjs'
 
 type DirectorySetting = 'toolDirectory' | 'outputDirectory'
@@ -16,7 +17,7 @@ type CoreRequest =
   | { operation: 'inspect'; video: string }
   | { operation: 'export'; video: string; cover: string; outputDirectory: string }
 
-const defaultPreferences: Preferences = { toolDirectory: '', outputDirectory: '', reduceMotion: false, theme: 'dark', welcomeSeen: false }
+const defaultPreferences: Preferences = { toolDirectory: '', outputDirectory: '', cacheDirectory: '', reduceMotion: false, theme: 'dark', welcomeSeen: false }
 const titleBars: Record<Theme, { color: string; symbolColor: string; height: number }> = {
   dark: { color: '#0a0a0a', symbolColor: '#d4d4d4', height: 40 },
   light: { color: '#f3f3f6', symbolColor: '#262630', height: 40 },
@@ -44,9 +45,11 @@ const selected = new Map<AssetKind, Asset>()
 let selectionRevision = 0
 let frameRequest = 0
 let frameAction = false
+let cacheBusy = false
 let videoDetails: { id: string; info: VideoDetails } | undefined
 let frameTools: { directory: string; tools?: ToolStatus } | undefined
-const frames = new FrameStore()
+const mediaCache = new MediaCache(app.getPath('userData'))
+const frames = new FrameStore(mediaCache)
 const updates = createUpdateChecker(app.getVersion(), (url, options) => net.fetch(url, options))
 
 protocol.registerSchemesAsPrivileged([
@@ -63,6 +66,7 @@ async function loadPreferences() {
     preferences = {
       toolDirectory: typeof saved.toolDirectory === 'string' && isAbsolute(saved.toolDirectory) ? saved.toolDirectory : '',
       outputDirectory: typeof saved.outputDirectory === 'string' && isAbsolute(saved.outputDirectory) ? saved.outputDirectory : '',
+      cacheDirectory: typeof saved.cacheDirectory === 'string' && isAbsolute(saved.cacheDirectory) ? saved.cacheDirectory : '',
       reduceMotion: saved.reduceMotion === true,
       theme: saved.theme === 'light' ? 'light' : 'dark',
       welcomeSeen: saved.welcomeSeen === true,
@@ -144,7 +148,36 @@ function clearGeneratedCover() {
   const previous = selected.get('cover')
   if (!previous?.frameSource) return
   selected.delete('cover')
-  void rm(previous.path, { force: true }).catch(() => {})
+  mediaCache.remove(previous.path)
+}
+
+function activeCachePaths() {
+  const paths = new Set<string>()
+  const cover = selected.get('cover')
+  if (frames.activePath) paths.add(frames.activePath)
+  if (cover?.frameSource) paths.add(cover.path)
+  return paths
+}
+
+async function withCache<T>(action: () => Promise<T>) {
+  if (cacheBusy || exporting || frameAction) throw new Error('请等待当前媒体操作完成后再管理缓存。')
+  cacheBusy = true
+  frameRequest++
+  try {
+    await frames.waitForPending()
+    await mediaCache.waitForRemovals()
+    return await action()
+  } finally { cacheBusy = false }
+}
+
+async function moveCache(directory: string) {
+  const result = await mediaCache.migrate(directory, activeCachePaths(), () => savePreference('cacheDirectory', directory), (paths) => {
+    frames.relocate(paths)
+    const cover = selected.get('cover')
+    const destination = cover?.frameSource && paths.get(cover.path)
+    if (cover && destination) cover.path = destination
+  })
+  return { ...result, preferences }
 }
 
 async function takeAsset(path: string): Promise<Asset> {
@@ -158,7 +191,7 @@ async function takeAsset(path: string): Promise<Asset> {
 }
 
 async function selectFiles(paths: unknown) {
-  if (exporting || frameAction) throw new Error('请在当前操作完成后更换素材。')
+  if (exporting || frameAction || cacheBusy) throw new Error('请在当前操作完成后更换素材。')
   if (!Array.isArray(paths) || paths.length < 1 || paths.length > 2 || !paths.every((item) => typeof item === 'string')) {
     throw new Error('请拖入一个 MP4 视频或一张封面，也可以同时拖入这两个文件。')
   }
@@ -167,7 +200,7 @@ async function selectFiles(paths: unknown) {
   if (assets.length === 2 && assets[0].kind === assets[1].kind) {
     throw new Error('请同时拖入一个 MP4 视频和一张封面。')
   }
-  if (revision !== selectionRevision || exporting || frameAction) throw new Error('素材状态已变化，请重新选择。')
+  if (revision !== selectionRevision || exporting || frameAction || cacheBusy) throw new Error('素材状态已变化，请重新选择。')
   if (assets.some((asset) => asset.kind === 'video')) {
     frameRequest++
     frames.reset()
@@ -235,6 +268,20 @@ function registerHandlers() {
     return result.canceled ? preferences : savePreference(setting, result.filePaths[0])
   })
   handle('settings:reset', (key: unknown) => savePreference(requireDirectorySetting(key), ''))
+  handle('cache:status', () => mediaCache.status(activeCachePaths()))
+  handle('cache:choose', async () => {
+    const result = await dialog.showOpenDialog(appWindow!, {
+      title: '选择媒体缓存位置', defaultPath: preferences.cacheDirectory || undefined,
+      properties: ['openDirectory', 'createDirectory'],
+    })
+    return result.canceled || !result.filePaths[0] ? null : withCache(() => moveCache(result.filePaths[0]))
+  })
+  handle('cache:reset', () => withCache(() => moveCache('')))
+  handle('cache:open', async () => {
+    const message = await shell.openPath(await mediaCache.openPath())
+    if (message) throw new Error(message)
+  })
+  handle('cache:clear', () => withCache(() => mediaCache.clear(activeCachePaths())))
   handle('settings:detect', checkTools)
   handle('welcome:complete', () => savePreference('welcomeSeen', true))
   handle('settings:windows-animation', () => shell.openExternal('ms-settings:easeofaccess-visualeffects'))
@@ -245,24 +292,24 @@ function registerHandlers() {
   })
 
   handle('frame:extract', async (videoId: string, time: unknown, presented: unknown) => {
-    if (frameAction || exporting) throw new Error('请等待当前操作完成。')
+    if (frameAction || exporting || cacheBusy) throw new Error('请等待当前操作完成。')
     if (typeof time !== 'number' || !Number.isFinite(time) || time < 0) throw new Error('无效的视频定位时间。')
     const video = requireAsset('video', videoId)
     const request = ++frameRequest
     const tools = frameTools?.directory === preferences.toolDirectory ? frameTools.tools : (await checkTools()).tools
     if (!tools) throw new Error('请先配置 FFmpeg 和 FFprobe。')
     const details = await inspectVideo(videoId)
-    if (request !== frameRequest || frameAction || exporting) throw new Error('已取消旧的取帧请求。')
+    if (request !== frameRequest || frameAction || exporting || cacheBusy) throw new Error('已取消旧的取帧请求。')
     return frames.extract(tools.ffmpeg, video, details, time, presented === true)
   })
   handle('frame:cancel', (videoId: string) => {
-    if (selected.get('video')?.id !== videoId || frameAction) return
+    if (selected.get('video')?.id !== videoId || frameAction || cacheBusy) return
     frameRequest++
     frames.cancelPending()
   })
 
   async function withFrame<T>(id: string, action: (path: string, video: Asset, time: number) => Promise<T>) {
-    if (frameAction || exporting) throw new Error('请等待当前操作完成。')
+    if (frameAction || exporting || cacheBusy) throw new Error('请等待当前操作完成。')
     const frame = frames.get(id)
     if (!frame) throw new Error('请重新定位视频帧。')
     const video = requireAsset('video', frame.videoId)
@@ -279,7 +326,7 @@ function registerHandlers() {
   }
 
   handle('frame:use', (id: string) => withFrame(id, async (source, video, time) => {
-    const path = await frames.tempPath()
+    const path = await mediaCache.tempPath()
     try {
       await copyFile(source, path)
       const cover = { ...await takeAsset(path), name: frameName(video, time), frameSource: video.id }
@@ -308,7 +355,7 @@ function registerHandlers() {
   }))
 
   handle('cover:export', async (videoId: string, coverId: string) => {
-    if (exporting || frameAction) throw new Error('请等待当前操作完成。')
+    if (exporting || frameAction || cacheBusy) throw new Error('请等待当前操作完成。')
     const video = requireAsset('video', videoId)
     const cover = requireAsset('cover', coverId)
     exporting = true
@@ -348,7 +395,7 @@ function createWindow() {
   appWindow.webContents.session.setPermissionRequestHandler((_contents, _permission, callback) => callback(false))
   const painted = new Promise<void>((resolve) => window.once('ready-to-show', resolve))
   appWindow.on('close', (event) => {
-    if (exporting || frameAction) {
+    if (exporting || frameAction || cacheBusy) {
       event.preventDefault()
       void dialog.showMessageBox(appWindow!, { message: '当前操作完成后即可关闭窗口。' })
     }
@@ -367,6 +414,7 @@ if (app.requestSingleInstanceLock()) {
   })
   void app.whenReady().then(async () => {
     await loadPreferences()
+    await mediaCache.initialize(preferences.cacheDirectory)
     protocol.handle('w3f7-media', (request) => {
       const url = new URL(request.url)
       if (url.hostname === 'video') {

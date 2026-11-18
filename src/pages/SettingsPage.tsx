@@ -6,13 +6,15 @@ import { Button } from '../ui/shadcn/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/shadcn/card'
 import { Separator } from '../ui/shadcn/separator'
 import { Switch } from '../ui/shadcn/switch'
+import { StorageSettings } from './StorageSettings'
 
 type DirectorySetting = 'toolDirectory' | 'outputDirectory'
 
-export function SettingsPage({ preferences, engine, error, systemReduced, onSave, onRetry }: {
+export function SettingsPage({ preferences, engine, error, systemReduced, onSave, onRetry, onPreferences }: {
   preferences: Preferences; engine: EngineStatus; error: string; systemReduced: boolean
   onSave: (action: () => Promise<Preferences>, recheck?: boolean) => Promise<void>
   onRetry: () => void
+  onPreferences: (preferences: Preferences) => void
 }) {
   const tools = engine.kind === 'ready' ? engine.tools : undefined
 
@@ -27,7 +29,7 @@ export function SettingsPage({ preferences, engine, error, systemReduced, onSave
   return (
     <section className="page-layout settings-layout">
       <header className="page-header">
-        <div className="grid gap-1.5"><h1>设置</h1><p>管理外观、动效、FFmpeg 和默认输出位置。</p></div>
+        <div className="grid gap-1.5"><h1>设置</h1><p>管理外观、动效、FFmpeg、默认输出位置和媒体缓存。</p></div>
       </header>
       {error && <Alert variant="destructive"><AlertCircle /><AlertDescription>{error}</AlertDescription></Alert>}
       <Card>
@@ -103,6 +105,8 @@ export function SettingsPage({ preferences, engine, error, systemReduced, onSave
           </div>
         </CardContent>
       </Card>
+
+      <StorageSettings directory={preferences.cacheDirectory} onPreferences={onPreferences} />
 
       <Card className="gap-0">
         <CardContent className="setting-row">

@@ -43,9 +43,21 @@ export type UpdateResult =
 export interface Preferences {
   toolDirectory: string
   outputDirectory: string
+  cacheDirectory: string
   reduceMotion: boolean
   theme: Theme
   welcomeSeen: boolean
+}
+export interface MediaCacheStatus {
+  directory: string
+  bytes: number
+  activeBytes: number
+  warning: string
+}
+export interface MediaCacheMove {
+  preferences: Preferences
+  moved: number
+  incomplete: boolean
 }
 export interface DesktopAPI {
   pick: (kind: AssetKind) => Promise<Asset | null>
@@ -56,6 +68,11 @@ export interface DesktopAPI {
   setTheme: (theme: Theme) => Promise<Preferences>
   chooseDirectory: (setting: 'toolDirectory' | 'outputDirectory') => Promise<Preferences>
   resetDirectory: (setting: 'toolDirectory' | 'outputDirectory') => Promise<Preferences>
+  cacheStatus: () => Promise<MediaCacheStatus>
+  chooseCacheDirectory: () => Promise<MediaCacheMove | null>
+  resetCacheDirectory: () => Promise<MediaCacheMove>
+  openCacheDirectory: () => Promise<void>
+  clearMediaCache: () => Promise<{ released: number; incomplete: boolean }>
   detect: () => Promise<ToolCheck>
   completeWelcome: () => Promise<Preferences>
   openAnimationSettings: () => Promise<void>

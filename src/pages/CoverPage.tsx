@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { DragEvent } from 'react'
-import { AlertCircle, ArrowDownToLine, Check, CircleCheck, FileVideo, FolderOpen, ImageIcon, LoaderCircle, Upload } from 'lucide-react'
+import { AlertCircle, ArrowDownToLine, Check, CircleCheck, FileVideo, FolderOpen, ImageIcon, LoaderCircle, Maximize2, MonitorPlay, Upload, X } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
+import { Dialog } from 'radix-ui'
 import type { Asset, AssetKind, Preferences, VideoDetails } from '../bridge'
 import { api, errorText, type EngineStatus } from '../workspace'
 import { ActionButton } from '../ui/action-button'
@@ -16,7 +17,6 @@ import { Button } from '../ui/shadcn/button'
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '../ui/shadcn/card'
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '../ui/shadcn/empty'
 import { Progress } from '../ui/shadcn/progress'
-import { Separator } from '../ui/shadcn/separator'
 import { VideoTimeline } from './VideoTimeline'
 
 interface CoverPageProps {
@@ -56,7 +56,7 @@ function AssetRow({ kind, asset, info, disabled, onPick }: {
       <span className="bg-muted text-muted-foreground grid size-9 shrink-0 place-items-center rounded-md"><Icon className="size-4" /></span>
       <BlurFade key={asset?.id ?? kind} className="min-w-0 flex-1" delay={asset && kind === 'cover' ? 0.045 : 0}>
         <p className="text-muted-foreground text-xs">{typeName}</p>
-        <p className="truncate text-sm font-medium" title={asset?.path}>{asset?.name ?? '尚未导入'}</p>
+        <p className="truncate text-sm font-medium" title={asset?.frameSource ? asset.name : asset?.path}>{asset?.name ?? '尚未导入'}</p>
         {asset && <p className="text-muted-foreground mt-0.5 truncate text-xs">{info || sizeLabel(asset.bytes)}</p>}
       </BlurFade>
       <Button type="button" variant={asset ? 'ghost' : 'outline'} size="sm" disabled={disabled} onClick={onPick}
@@ -290,87 +290,96 @@ export function CoverPage({ active, engine, preferences, onChooseOutput, onOpenS
         </Empty>
       ) : (
         <div className="cover-grid">
-          <div className="grid min-w-0 gap-4">
-            {video && details && details.duration > 0 && <VideoTimeline key={video.id} video={video} details={details}
+          {video && details && details.duration > 0 ? <VideoTimeline key={video.id} video={video} details={details}
               active={active} disabled={controlsBusy} onBusy={setFrameBusy}
-              onUseFrame={(id) => select(async () => [await api.useFrame(id)])} />}
-            <Card className="min-w-0 gap-4 pb-4 pt-5">
-              <CardHeader className="flex items-center justify-between gap-3">
-                <CardTitle>封面预览</CardTitle>
-                {coverSize && <span className="text-muted-foreground text-xs tabular-nums">{coverSize}</span>}
-              </CardHeader>
+              onUseFrame={(id) => select(async () => [await api.useFrame(id)])} /> : (
+            <Card className="editor-panel min-w-0 gap-4 py-5">
+              <CardHeader><CardTitle className="flex items-center gap-2"><MonitorPlay className="text-muted-foreground size-4" />视频预览</CardTitle></CardHeader>
               <CardContent>
-                <div className="preview-stage">
-                  <AnimatePresence initial={animated}>
-                    {cover && !coverError && (
-                      <motion.img key={cover.id} src={cover.preview} alt="所选视频封面"
-                        initial={animated ? { opacity: 0, scale: 0.986 } : false}
-                        animate={{ opacity: coverSize ? 1 : 0, scale: 1 }} exit={{ opacity: 0 }}
-                        transition={{ duration: animated ? 0.23 : 0 }}
-                        onLoad={({ currentTarget }) => {
-                          if (currentCoverId.current === cover.id) {
-                            setCoverReview({ id: cover.id, info: currentTarget.naturalWidth + ' × ' + currentTarget.naturalHeight })
-                          }
-                        }}
-                        onError={() => {
-                          if (currentCoverId.current === cover.id) setCoverReview({ id: cover.id, error: '封面无法读取，请换一张 PNG、JPG 或 JPEG。' })
-                        }} />
-                    )}
-                  </AnimatePresence>
-                  {(!cover || coverError) && (
-                    <Empty className="h-full border-0 p-4">
-                      <EmptyHeader>
-                        <EmptyMedia variant="icon"><ImageIcon /></EmptyMedia>
-                        <EmptyTitle>{coverError ? '无法预览封面' : '待导入封面'}</EmptyTitle>
-                      </EmptyHeader>
-                      <EmptyContent><Button variant="outline" size="sm" disabled={controlsBusy} onClick={() => pick('cover')}>选择封面</Button></EmptyContent>
-                    </Empty>
-                  )}
-                </div>
-                <div className={cn('replacement-drop text-muted-foreground mt-3', dragging && 'drop-active')} data-drop-zone="replacement">
+                <Empty className="editor-empty bg-muted/40 rounded-lg border-0">
+                  <EmptyHeader>
+                    <EmptyMedia variant="icon"><FileVideo /></EmptyMedia>
+                    <EmptyTitle>{!video ? '待导入视频' : videoError ? '视频无法预览' : engine.kind === 'missing' ? '预览需要 FFmpeg' : '正在读取视频'}</EmptyTitle>
+                  </EmptyHeader>
+                </Empty>
+              </CardContent>
+            </Card>
+          )}
+
+          <div className="cover-inspector">
+            <Card className="min-w-0 gap-3.5 py-5">
+              <CardHeader><CardTitle>素材与封面</CardTitle></CardHeader>
+              <CardContent className="grid gap-3.5">
+                <AssetRow kind="video" asset={video} info={details ? [details.width + ' × ' + details.height, durationLabel(details.duration), details.codec.toUpperCase()].join(' · ') : undefined} disabled={controlsBusy} onPick={() => pick('video')} />
+                <AssetRow kind="cover" asset={cover} info={cover && coverSize ? coverSize + ' · ' + sizeLabel(cover.bytes) : undefined} disabled={controlsBusy} onPick={() => pick('cover')} />
+                <Dialog.Root>
+                  <Dialog.Trigger asChild>
+                    <Button variant="outline" className="cover-thumbnail" disabled={!coverSize || Boolean(coverError)} aria-label="放大封面预览">
+                      <AnimatePresence initial={animated}>
+                        {cover && !coverError && <motion.img key={cover.id} src={cover.preview} alt="所选视频封面"
+                          initial={animated ? { opacity: 0, scale: 0.985 } : false}
+                          animate={{ opacity: coverSize ? 1 : 0, scale: 1 }} exit={{ opacity: 0 }} transition={{ duration: animated ? 0.2 : 0 }}
+                          onLoad={({ currentTarget }) => {
+                            if (currentCoverId.current === cover.id) setCoverReview({ id: cover.id, info: currentTarget.naturalWidth + ' × ' + currentTarget.naturalHeight })
+                          }}
+                          onError={() => {
+                            if (currentCoverId.current === cover.id) setCoverReview({ id: cover.id, error: '封面无法读取，请换一张 PNG、JPG 或 JPEG。' })
+                          }} />}
+                      </AnimatePresence>
+                      {coverSize && !coverError ? <span className="cover-enlarge"><Maximize2 /></span> :
+                        <span className="flex items-center gap-2"><ImageIcon />{coverError ? '无法预览封面' : '封面预览'}</span>}
+                    </Button>
+                  </Dialog.Trigger>
+                  {cover && <Dialog.Portal>
+                    <Dialog.Overlay className="qr-overlay" data-reduced={!animated} />
+                    <Dialog.Content className="qr-dialog cover-dialog" data-reduced={!animated} aria-describedby={undefined}>
+                      <div className="flex items-center justify-between gap-3">
+                        <Dialog.Title className="font-semibold">封面预览</Dialog.Title>
+                        <Dialog.Close asChild><Button size="icon-sm" variant="ghost" aria-label="关闭封面预览"><X /></Button></Dialog.Close>
+                      </div>
+                      <img src={cover.preview} alt="放大的视频封面" />
+                    </Dialog.Content>
+                  </Dialog.Portal>}
+                </Dialog.Root>
+                <div className={cn('replacement-drop text-muted-foreground', dragging && 'drop-active')} data-drop-zone="replacement">
                   {beam}
                   <Upload className="size-3.5" />{dragging ? '松开鼠标，导入素材' : '拖入文件以导入或替换素材'}
                 </div>
               </CardContent>
             </Card>
-          </div>
 
-          <Card className="min-w-0 gap-4 py-5">
-            <CardHeader><CardTitle>素材与输出</CardTitle></CardHeader>
-            <CardContent className="grid gap-4">
-              <AssetRow kind="video" asset={video} info={details ? [details.width + ' × ' + details.height, durationLabel(details.duration), details.codec.toUpperCase()].join(' · ') : undefined} disabled={controlsBusy} onPick={() => pick('video')} />
-              <AssetRow kind="cover" asset={cover} info={cover && coverSize ? coverSize + ' · ' + sizeLabel(cover.bytes) : undefined} disabled={controlsBusy} onPick={() => pick('cover')} />
-              <Separator />
-              <div className="grid gap-2">
+            <Card className="min-w-0 gap-3 py-5">
+              <CardHeader><CardTitle>输出设置</CardTitle></CardHeader>
+              <CardContent className="grid gap-2">
                 <span className="text-muted-foreground text-xs">输出文件夹</span>
                 <Button variant="outline" className="w-full min-w-0 justify-start" disabled={controlsBusy}
                   title={outputDirectory} aria-label="选择输出文件夹" onClick={() => void changeOutput()}>
                   <FolderOpen /><span className="min-w-0 truncate">{outputDirectory}</span>
                 </Button>
-              </div>
-            </CardContent>
-            <CardFooter className="mt-1 flex flex-col items-stretch gap-3">
-              <ActionButton shimmer="ready" disabled={!canExport} onClick={() => void exportCover()}>
-                {exporting ? <LoaderCircle className="animate-spin" /> : <ArrowDownToLine />}
-                {exporting ? '正在封装' : '封装封面'}
-              </ActionButton>
-              {exporting && (
-                <div className="grid gap-2 export-progress" role="status">
-                  <span className="text-muted-foreground text-xs tabular-nums">正在封装 · {progress}%</span>
-                  <Progress value={progress} aria-label="封装进度" />
-                </div>
-              )}
-              {output && (
-                <BlurFade key={output} className="grid gap-2">
-                  <div className="min-w-0 text-sm" role="status">
-                    <p className="flex items-center gap-2"><Check className="result-check size-4" />封装完成</p>
-                    <p className="text-muted-foreground mt-1 truncate text-xs" title={output}>{output.split(/[\\/]/).at(-1)}</p>
+              </CardContent>
+              <CardFooter className="flex flex-col items-stretch gap-3">
+                <ActionButton shimmer="ready" disabled={!canExport} onClick={() => void exportCover()}>
+                  {exporting ? <LoaderCircle className="animate-spin" /> : <ArrowDownToLine />}
+                  {exporting ? '正在封装' : '封装封面'}
+                </ActionButton>
+                {exporting && (
+                  <div className="grid gap-2 export-progress" role="status">
+                    <span className="text-muted-foreground text-xs tabular-nums">正在封装 · {progress}%</span>
+                    <Progress value={progress} aria-label="封装进度" />
                   </div>
-                  <Button variant="outline" onClick={() => void api.revealOutput()}><FolderOpen />在资源管理器中查看</Button>
-                </BlurFade>
-              )}
-            </CardFooter>
-          </Card>
+                )}
+                {output && (
+                  <BlurFade key={output} className="grid gap-2">
+                    <div className="min-w-0 text-sm" role="status">
+                      <p className="flex items-center gap-2"><Check className="result-check size-4" />封装完成</p>
+                      <p className="text-muted-foreground mt-1 truncate text-xs" title={output}>{output.split(/[\\/]/).at(-1)}</p>
+                    </div>
+                    <Button variant="outline" onClick={() => void api.revealOutput()}><FolderOpen />在资源管理器中查看</Button>
+                  </BlurFade>
+                )}
+              </CardFooter>
+            </Card>
+          </div>
         </div>
       )}
     </section>

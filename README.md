@@ -17,8 +17,8 @@
 </div>
 
 <div align="center">
-<img src="docs/preview.png" width="900" alt="W3F7のVideo_Toolsbar 深色起始页">
-<img src="docs/preview-light.png" width="900" alt="W3F7のVideo_Toolsbar 浅色起始页">
+<img src="docs/preview.png" width="900" alt="W3F7のVideo_Toolsbar 深色视频时间轴">
+<img src="docs/preview-light.png" width="900" alt="W3F7のVideo_Toolsbar 浅色视频时间轴">
 </div>
 
 ## 快速开始
@@ -43,7 +43,7 @@
 
 ### Windows 安装版
 
-运行 `W3F7-Video-Toolsbar-1.0.0-Setup-x64.exe`，按中文向导选择目录并安装。默认安装在当前用户的 `%LOCALAPPDATA%\Programs\W3F7-Video-Toolsbar`，开始菜单会添加应用入口，桌面快捷方式可自行勾选。安装版同样需要外置 FFmpeg 和 FFprobe。
+运行下载的 `W3F7-Video-Toolsbar-*-Setup-x64.exe`，按中文向导选择目录并安装。默认安装在当前用户的 `%LOCALAPPDATA%\Programs\W3F7-Video-Toolsbar`，开始菜单会添加应用入口，桌面快捷方式可自行勾选。安装版同样需要外置 FFmpeg 和 FFprobe。
 
 可从 Windows「设置 → 应用」或开始菜单运行卸载程序。卸载会删除应用文件，个人设置和自己生成的文件保留。安装程序目前未签名。
 
@@ -51,11 +51,13 @@
 
 选中一个 MP4 与一张静态 PNG/JPG/JPEG，一起拖到 [W3F7-Video-Cover.bat](W3F7-Video-Cover.bat)。脚本自动识别拖放顺序，在批处理文件所在目录生成 `原名_cover.mp4`。同名会生成 `原名_cover_2.mp4` 等编号文件。Windows 自带的 PowerShell 会运行脚本内嵌的处理核心。
 
-## v1.1 本地预览版
+## v1.1.0 正式版
 
-- 选择 MP4 后，在「视频封面封装」页播放、暂停或拖动时间轴。定位完成后，应用显示实际取到的帧。可以将它设为封面，也可以另存为原分辨率 PNG。播放器遇到无法连续播放的编码时，仍可拖动定位，由 FFmpeg 显示选中的帧。
+- 起始页的胶片标识会变速旋转和漂浮，深浅主题均支持。开启「减少动效」会显示静态标识。
+- 选择 MP4 后，可在带播放头和时间刻度的时间轴上定位。应用显示实际取到的帧，可将它设为封面或另存为原分辨率 PNG。遇到无法连续播放的编码时，仍可通过 FFmpeg 拖动定位。点击素材栏的封面缩略图可查看大图，输出目录和封装结果集中在「输出设置」。
+- 「设置 → 存储与缓存」显示抽帧图片和临时封面的位置及占用。默认使用系统临时目录。更改位置或恢复默认时会立即迁移媒体缓存。「清理缓存」释放闲置文件，并保留当前帧、选中的封面和已导出文件。
 - 首次启动显示欢迎和检测结果。默认从系统 PATH 查找 FFmpeg 和 FFprobe，也可以在「设置 → FFmpeg」选择 `bin` 目录。之后启动时若 Windows 动画仍关闭，会显示简短提醒。
-- 应用启动后查询 GitHub 上的最新正式版。「关于 → 检查更新」可手动重试，发现新版本时可前往 GitHub 下载。上方公开下载链接提供 v1.0.0 正式版。
+- 应用启动后查询 GitHub 上的最新正式版。「关于 → 检查更新」可手动重试，发现新版本时可前往 GitHub 下载。v1.1.0 提供本地安装版和便携版，上方公开下载为 v1.0.0。
 
 ## 封装与兼容性
 

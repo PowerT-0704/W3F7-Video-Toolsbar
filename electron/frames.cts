@@ -1,12 +1,11 @@
 import { spawn } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { createReadStream } from 'node:fs'
-import { mkdtemp, rm, stat } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { rm, stat } from 'node:fs/promises'
 import { createInterface } from 'node:readline'
 import { Readable } from 'node:stream'
 import type { Asset, VideoDetails, VideoFrame } from '../src/bridge'
+import type { MediaCache } from './media-cache.cjs'
 
 interface StoredFrame extends VideoFrame {
   videoId: string
@@ -80,25 +79,25 @@ async function readFrame(executable: string, video: Asset, details: VideoDetails
 }
 
 export class FrameStore {
-  private directory?: Promise<string>
   private current?: StoredFrame
   private job?: { controller: AbortController; promise: Promise<VideoFrame> }
 
-  async tempPath() {
-    this.directory ??= mkdtemp(join(tmpdir(), 'w3f7-video-frames-')).catch((error) => {
-      this.directory = undefined
-      throw error
-    })
-    return join(await this.directory, randomUUID() + '.png')
-  }
+  constructor(private readonly cache: MediaCache) {}
 
   get(id: string) { return this.current?.id === id ? this.current : undefined }
+  get activePath() { return this.current?.path }
+
+  relocate(paths: ReadonlyMap<string, string>) {
+    const destination = this.current && paths.get(this.current.path)
+    if (this.current && destination) this.current.path = destination
+  }
 
   cancelPending() { this.job?.controller.abort() }
+  async waitForPending() { await this.job?.promise.catch(() => {}) }
 
   reset() {
     this.cancelPending()
-    if (this.current) void rm(this.current.path, { force: true }).catch(() => {})
+    if (this.current) this.cache.remove(this.current.path)
     this.current = undefined
   }
 
@@ -109,13 +108,13 @@ export class FrameStore {
     const promise = (async () => {
       await previous?.promise.catch(() => {})
       controller.signal.throwIfAborted()
-      const path = await this.tempPath()
+      const path = await this.cache.tempPath()
       try {
         const actual = await readFrame(executable, video, details, time, presented, path, controller.signal)
         controller.signal.throwIfAborted()
         const id = randomUUID()
         const frame = { id, time: actual, preview: 'w3f7-media://frame/' + id }
-        if (this.current) void rm(this.current.path, { force: true }).catch(() => {})
+        if (this.current) this.cache.remove(this.current.path)
         this.current = { ...frame, path, videoId: video.id }
         return frame
       } catch (error) {
@@ -130,8 +129,9 @@ export class FrameStore {
 
   async dispose() {
     this.reset()
-    await this.job?.promise.catch(() => {})
-    if (this.directory) await rm(await this.directory, { recursive: true, force: true, maxRetries: 3 })
+    await this.waitForPending()
+    await this.cache.waitForRemovals()
+    await this.cache.dispose()
   }
 }
 

@@ -1,5 +1,5 @@
 import { ArrowRight, Clapperboard, Film, History } from 'lucide-react'
-import { motion } from 'motion/react'
+import { motion, useAnimate } from 'motion/react'
 import { version } from '../../package.json'
 import { ActionButton } from '../ui/action-button'
 import { BlurFade } from '../ui/blur-fade'
@@ -9,7 +9,7 @@ import { Badge } from '../ui/shadcn/badge'
 import { Button } from '../ui/shadcn/button'
 import type { UpdateResult } from '../bridge'
 import { api, errorText } from '../workspace'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 export function Startup({ animated }: { animated: boolean }) {
   return (
@@ -24,7 +24,36 @@ export function Startup({ animated }: { animated: boolean }) {
   )
 }
 
-export function HomePage({ onOpenCover, onOpenLog, update }: { onOpenCover: () => void; onOpenLog: () => void; update?: UpdateResult }) {
+function AnimatedFilmEmblem({ active }: { active: boolean }) {
+  const [scope, animate] = useAnimate<HTMLDivElement>()
+  const playback = useRef<{ play: () => void; pause: () => void }>(undefined)
+
+  useEffect(() => {
+    const controls = animate(scope.current, {
+      rotate: [-11, 349],
+      x: [0, -6, 2, 7, 0],
+      y: [0, -8, -3, 5, 0],
+    }, { duration: 8, repeat: Infinity, ease: [0.42, 0, 0.58, 1] })
+    playback.current = controls
+    return () => { playback.current = undefined; controls.stop() }
+  }, [animate, scope])
+
+  useEffect(() => {
+    function updateVisibility() {
+      if (active && !document.hidden) playback.current?.play()
+      else playback.current?.pause()
+    }
+    updateVisibility()
+    document.addEventListener('visibilitychange', updateVisibility)
+    return () => document.removeEventListener('visibilitychange', updateVisibility)
+  }, [active])
+
+  return <div ref={scope} className="film-emblem" aria-hidden="true"><Film /></div>
+}
+
+export function HomePage({ active, onOpenCover, onOpenLog, update }: {
+  active: boolean; onOpenCover: () => void; onOpenLog: () => void; update?: UpdateResult
+}) {
   const enabled = useMotionEnabled()
   const [error, setError] = useState('')
   return (
@@ -43,7 +72,7 @@ export function HomePage({ onOpenCover, onOpenLog, update }: { onOpenCover: () =
           </BlurFade>
         </div>
         <BlurFade className="home-art" delay={0.075}>
-          <div className="film-emblem" aria-hidden="true"><Film /></div>
+          {enabled ? <AnimatedFilmEmblem active={active} /> : <div className="film-emblem" aria-hidden="true"><Film /></div>}
         </BlurFade>
       </div>
       {update?.kind === 'available' && <div className="update-banner">

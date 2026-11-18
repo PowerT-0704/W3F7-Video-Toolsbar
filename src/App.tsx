@@ -17,7 +17,7 @@ import {
   SidebarMenuItem, SidebarProvider, SidebarSeparator, SidebarTrigger, useSidebar,
 } from './ui/shadcn/sidebar'
 
-const defaultPreferences: Preferences = { toolDirectory: '', outputDirectory: '', reduceMotion: false, theme: initialTheme, welcomeSeen: false }
+const defaultPreferences: Preferences = { toolDirectory: '', outputDirectory: '', cacheDirectory: '', reduceMotion: false, theme: initialTheme, welcomeSeen: false }
 const pages = {
   home: { label: '起始页', icon: House },
   cover: { label: '视频封面封装', icon: Clapperboard },
@@ -184,13 +184,13 @@ export function App() {
   }
 
   const views = {
-    home: <HomePage onOpenCover={() => navigate('cover')} onOpenLog={() => navigate('changelog')} update={update} />,
+    home: <HomePage active={page === 'home'} onOpenCover={() => navigate('cover')} onOpenLog={() => navigate('changelog')} update={update} />,
     cover: <CoverPage active={page === 'cover'} engine={engine} preferences={preferences}
       onChooseOutput={async () => { setPreferences(await api.chooseDirectory('outputDirectory')) }}
       onOpenSettings={() => navigate('settings')} onRetry={() => void detect()} />,
     changelog: <ChangelogPage />,
     settings: <SettingsPage preferences={preferences} engine={engine} error={settingsError} systemReduced={systemReduced}
-      onSave={saveSettings} onRetry={() => void detect()} />,
+      onSave={saveSettings} onRetry={() => void detect()} onPreferences={setPreferences} />,
     about: <AboutPage update={update} checking={checkingUpdate} onCheck={checkUpdates} />,
   }
 

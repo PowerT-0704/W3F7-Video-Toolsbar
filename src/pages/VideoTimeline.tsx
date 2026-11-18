@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Download, ImagePlus, Pause, Play } from 'lucide-react'
+import { Download, Film, ImagePlus, MonitorPlay, Pause, Play } from 'lucide-react'
+import { motion } from 'motion/react'
+import type { CSSProperties } from 'react'
 import type { Asset, VideoDetails, VideoFrame } from '../bridge'
 import { api, errorText } from '../workspace'
+import { useMotionEnabled } from '../ui/motion-policy'
 import { Button } from '../ui/shadcn/button'
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/shadcn/card'
 
@@ -11,6 +14,13 @@ function clockLabel(seconds: number) {
   const minutes = Math.floor(millis / 60000)
   const pad = (value: number, length = 2) => String(value).padStart(length, '0')
   return `${pad(minutes)}:${pad(secondsPart)}.${pad(millis % 1000, 3)}`
+}
+
+function rulerTicks(duration: number) {
+  const target = duration / 5
+  const unit = Math.max(0.001, 10 ** Math.floor(Math.log10(target)))
+  const step = ([1, 2, 5, 10].find((multiple) => multiple * unit >= target) ?? 10) * unit
+  return Array.from({ length: Math.ceil(duration * 0.94 / step) }, (_, index) => index * step)
 }
 
 export function VideoTimeline({ video, details, active, disabled, onUseFrame, onBusy }: {
@@ -37,6 +47,8 @@ export function VideoTimeline({ video, details, active, disabled, onUseFrame, on
   const captured = useRef<VideoFrame>(undefined)
   const playingNow = useRef(false)
   const workingNow = useRef(false)
+  const motionEnabled = useMotionEnabled()
+  const animated = active && motionEnabled
 
   const getFrame = useCallback(async (seconds: number, presented: boolean) => {
     window.clearTimeout(timer.current)
@@ -64,6 +76,10 @@ export function VideoTimeline({ video, details, active, disabled, onUseFrame, on
     let callback = 0
     const track = (_when: number, metadata: VideoFrameCallbackMetadata) => {
       lastPresented.current = metadata.mediaTime
+      if (playingNow.current) {
+        target.current = metadata.mediaTime
+        setTime(metadata.mediaTime)
+      }
       callback = media.requestVideoFrameCallback(track)
     }
     callback = media.requestVideoFrameCallback(track)
@@ -171,10 +187,11 @@ export function VideoTimeline({ video, details, active, disabled, onUseFrame, on
     }
   }
 
+  const position = Math.max(0, Math.min(time, details.duration))
   return (
-    <Card className="min-w-0 gap-4 py-5" aria-label="视频时间轴">
+    <Card className="editor-panel min-w-0 gap-4 py-5" aria-label="视频时间轴">
       <CardHeader className="flex flex-wrap items-center justify-between gap-2">
-        <CardTitle>视频时间轴</CardTitle>
+        <CardTitle className="flex items-center gap-2"><MonitorPlay className="text-muted-foreground size-4" />视频预览</CardTitle>
         {fallback && <span className="text-muted-foreground text-xs">FFmpeg 逐帧预览</span>}
       </CardHeader>
       <CardContent className="grid gap-3">
@@ -182,7 +199,7 @@ export function VideoTimeline({ video, details, active, disabled, onUseFrame, on
           {!fallback && <video ref={player} src={video.preview} preload="auto" playsInline
             onLoadedData={() => setCanPlay(true)} onError={switchToFrames}
             onTimeUpdate={(event) => {
-              if (playingNow.current) {
+              if (playingNow.current && lastPresented.current === undefined) {
                 target.current = event.currentTarget.currentTime
                 setTime(target.current)
               }
@@ -190,18 +207,33 @@ export function VideoTimeline({ video, details, active, disabled, onUseFrame, on
             onEnded={() => {
               if (playingNow.current) void getFrame(pauseTime(), true)
             }} />}
-          {!playing && frame && <img src={frame.preview} alt="当前视频帧" />}
+          {!playing && frame && <motion.img key={frame.id} src={frame.preview} alt="当前视频帧"
+            initial={animated && !fallback ? { opacity: 0 } : false} animate={{ opacity: 1 }} transition={{ duration: animated ? 0.13 : 0 }} />}
           {fallback && !frame && <p className="text-xs text-white">{decoding ? '正在解码当前帧' : '拖动时间轴定位视频帧'}</p>}
         </div>
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-          <Button variant="outline" size="sm" disabled={disabled || working || !canPlay || fallback}
-            onClick={() => void togglePlayback()}>
-            {playing ? <Pause /> : <Play />}{playing ? '暂停' : '播放'}
-          </Button>
-          <input className="timeline-range min-w-28 flex-1" type="range" aria-label="视频定位" min={0}
-            max={details.duration} step="any" value={Math.min(time, details.duration)}
-            disabled={disabled || working} onChange={(event) => seek(Number(event.currentTarget.value))} />
-          <output className="text-muted-foreground text-xs tabular-nums">{clockLabel(time)} / {clockLabel(details.duration)}</output>
+        <div className="editor-controls">
+          <div className="editor-transport">
+            <Button variant="outline" size="sm" disabled={disabled || working || !canPlay || fallback}
+              onClick={() => void togglePlayback()}>
+              {playing ? <Pause /> : <Play />}{playing ? '暂停' : '播放'}
+            </Button>
+            <span className="editor-time"><strong>{clockLabel(time)}</strong> / {clockLabel(details.duration)}</span>
+          </div>
+          <div className="editor-seek" data-decoding={decoding} style={{ '--playhead': `${position / details.duration * 100}%` } as CSSProperties}>
+            <div className="editor-scale" aria-hidden="true">
+              <div className="editor-ruler">
+                {rulerTicks(details.duration).map((tick) => <span key={tick} style={{ left: `${tick / details.duration * 100}%` }}>
+                  {clockLabel(tick).replace(/\.000$/, '')}
+                </span>)}
+              </div>
+              <div className="editor-track"><Film size={14} /><span title={video.name}>{video.name}</span></div>
+              <div className="editor-playhead" />
+            </div>
+            <input className="timeline-range" type="range" aria-label="视频定位" min={0}
+              max={details.duration} step="any" value={position}
+              aria-valuetext={`${clockLabel(position)}，总时长 ${clockLabel(details.duration)}`}
+              disabled={disabled || working} onChange={(event) => seek(Number(event.currentTarget.value))} />
+          </div>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" size="sm" disabled={disabled || working} onClick={() => void applyFrame(false)}>
