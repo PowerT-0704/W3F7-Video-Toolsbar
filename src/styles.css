@@ -266,6 +266,18 @@ body, #root { height: 100dvh; overflow: hidden; }
 }
 
 .preview-stage img { width: 100%; height: 100%; object-fit: contain; }
+.timeline-stage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: clamp(160px, 39vh, 350px);
+  overflow: hidden;
+  border-radius: var(--radius);
+  background: #0a0a0a;
+}
+.timeline-stage :is(video, img) { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.timeline-range { cursor: pointer; accent-color: var(--primary); }
+.timeline-range:focus-visible { outline: 2px solid var(--ring); outline-offset: 3px; }
 .replacement-drop {
   display: flex;
   align-items: center;
@@ -530,6 +542,11 @@ body, #root { height: 100dvh; overflow: hidden; }
   z-index: 56;
 }
 .qr-dialog img { max-width: 100%; max-height: 72dvh; width: auto; height: auto; object-fit: contain; justify-self: center; border-radius: 6px; }
+.startup-dialog { width: min(30rem, calc(100vw - 32px)); max-height: calc(100dvh - 70px); overflow: auto; padding: 22px; gap: 16px; }
+.startup-checks { display: grid; gap: 8px; font-size: .875rem; }
+.startup-checks > div { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; padding: 8px 10px; border-radius: var(--radius); background: var(--muted); }
+.startup-checks dt { color: var(--muted-foreground); }
+.update-banner { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--card); font-size: .875rem; }
 .qr-overlay[data-state="open"] { animation: qr-fade 180ms ease both; }
 .qr-overlay[data-state="closed"] { animation: qr-fade 130ms ease reverse both; }
 .qr-dialog[data-state="open"] { animation: qr-open 220ms cubic-bezier(.2,.75,.2,1) both; }

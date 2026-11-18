@@ -88,7 +88,7 @@ try {
   await writeFile(join(scratch, 'uninstall-directories.nsh'), removeDirectories.join('\r\n'), 'utf8')
   execFileSync(compiler, [
     '/V3', '/INPUTCHARSET', 'UTF8',
-    `/DVERSION=${meta.version}`, `/DESTIMATED_SIZE=${Math.ceil(size / 1024)}`,
+    `/DVERSION=${meta.version}`, `/DPE_VERSION=${meta.version.split('-')[0]}.0`, `/DESTIMATED_SIZE=${Math.ceil(size / 1024)}`,
     `/DPAYLOAD=${payload}`, `/DOUTPUT=${temporary}`, `/DMANIFESTS=${scratch}`,
     resolve('scripts', 'installer.nsi'),
   ], { windowsHide: true, stdio: 'inherit' })

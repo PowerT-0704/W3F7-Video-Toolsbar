@@ -261,8 +261,20 @@ try {
         'inspect' {
             $media = Read-Video $request.video
             $track = @(Get-VideoTracks $media)[0]
+            $startTime = 0.0
+            [void][double]::TryParse([string]$media.format.start_time, [Globalization.NumberStyles]::Float,
+                [Globalization.CultureInfo]::InvariantCulture, [ref]$startTime)
+            $timeBase = 0.000001
+            if ($track.time_base -match '^(\d+)/([1-9]\d*)$') { $timeBase = [double]$Matches[1] / [double]$Matches[2] }
+            $trackStart = 0.0
+            $trackLength = 0.0
+            [void][double]::TryParse([string]$track.start_time, [Globalization.NumberStyles]::Float,
+                [Globalization.CultureInfo]::InvariantCulture, [ref]$trackStart)
+            [void][double]::TryParse([string]$track.duration, [Globalization.NumberStyles]::Float,
+                [Globalization.CultureInfo]::InvariantCulture, [ref]$trackLength)
             Send-Event @{ type = 'result'; duration = (Get-Seconds $media); width = $track.width;
-                height = $track.height; codec = $track.codec_name }
+                height = $track.height; codec = $track.codec_name; startTime = $startTime; timeBase = $timeBase;
+                videoEnd = $(if ($trackLength -gt 0) { $trackStart + $trackLength - $startTime }) }
         }
         'export' { Export-Cover $request.video $request.cover $OutputDirectory }
         default { throw '未知媒体操作。' }

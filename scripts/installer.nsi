@@ -23,7 +23,7 @@ InstallDirRegKey HKCU "${PRODUCT_KEY}" "InstallDir"
 BrandingText "W3F7"
 ShowInstDetails show
 ShowUninstDetails show
-VIProductVersion "${VERSION}.0"
+VIProductVersion "${PE_VERSION}"
 VIAddVersionKey /LANG=2052 "ProductName" "${APP_NAME}"
 VIAddVersionKey /LANG=2052 "ProductVersion" "${VERSION}"
 VIAddVersionKey /LANG=2052 "FileVersion" "${VERSION}"

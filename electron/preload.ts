@@ -11,6 +11,14 @@ const api: DesktopAPI = {
   chooseDirectory: (setting) => ipcRenderer.invoke('settings:choose', setting),
   resetDirectory: (setting) => ipcRenderer.invoke('settings:reset', setting),
   detect: () => ipcRenderer.invoke('settings:detect'),
+  completeWelcome: () => ipcRenderer.invoke('welcome:complete'),
+  openAnimationSettings: () => ipcRenderer.invoke('settings:windows-animation'),
+  checkUpdates: () => ipcRenderer.invoke('updates:check'),
+  openUpdate: () => ipcRenderer.invoke('updates:open'),
+  extractFrame: (videoId, time, presented) => ipcRenderer.invoke('frame:extract', videoId, time, presented),
+  cancelFrame: (videoId) => ipcRenderer.invoke('frame:cancel', videoId),
+  useFrame: (id) => ipcRenderer.invoke('frame:use', id),
+  saveFrame: (id) => ipcRenderer.invoke('frame:save', id),
   exportCover: (video, cover) => ipcRenderer.invoke('cover:export', video, cover),
   onProgress: (callback) => {
     const listener = (_event: Electron.IpcRendererEvent, percent: number) => callback(percent)

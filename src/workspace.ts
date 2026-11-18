@@ -9,8 +9,8 @@ export function applyTheme(theme: Theme) {
 
 export type EngineStatus =
   | { kind: 'checking' }
-  | { kind: 'ready'; tools: ToolStatus }
-  | { kind: 'missing'; message: string }
+  | { kind: 'ready'; tools: ToolStatus; inPath: boolean }
+  | { kind: 'missing'; message: string; inPath: boolean }
 
 export function errorText(error: unknown) {
   const message = error instanceof Error ? error.message : String(error)

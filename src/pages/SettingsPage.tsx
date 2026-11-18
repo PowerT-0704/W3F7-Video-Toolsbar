@@ -77,6 +77,10 @@ export function SettingsPage({ preferences, engine, error, systemReduced, onSave
               <dt>FFprobe</dt><dd title={tools.ffprobe}>{tools.ffprobe}</dd>
             </dl>
           </>}
+          {engine.kind !== 'checking' && <p className="text-muted-foreground text-sm">
+            {engine.inPath ? '系统 PATH 中已找到可用的 FFmpeg 和 FFprobe。' : '系统 PATH 中未找到可用的 FFmpeg 和 FFprobe。'}
+            {preferences.toolDirectory && !tools && ' 当前选择的目录也不可用。'}
+          </p>}
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={onRetry} disabled={engine.kind === 'checking'}><RotateCw />重新检测</Button>
             <Button variant="ghost" onClick={() => void api.openLink('ffmpeg')}>获取 FFmpeg<ArrowUpRight /></Button>

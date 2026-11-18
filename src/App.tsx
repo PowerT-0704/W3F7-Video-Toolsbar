@@ -2,13 +2,14 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import type { CSSProperties, MouseEvent } from 'react'
 import { Clapperboard, History, House, Info, Settings2 } from 'lucide-react'
 import { LayoutGroup, motion } from 'motion/react'
-import type { Page, Preferences } from './bridge'
+import type { Page, Preferences, UpdateResult } from './bridge'
 import { api, applyTheme, errorText, initialTheme, type EngineStatus } from './workspace'
 import { AboutPage } from './pages/AboutPage'
 import { ChangelogPage } from './pages/ChangelogPage'
 import { CoverPage } from './pages/CoverPage'
 import { HomePage, Startup } from './pages/HomePage'
 import { SettingsPage } from './pages/SettingsPage'
+import { StartupNotice } from './pages/StartupNotice'
 import { useHoverSidebar } from './ui/hover-sidebar'
 import { MotionEnabledContext, useMotionEnabled, useSystemReducedMotion } from './ui/motion-policy'
 import {
@@ -16,7 +17,7 @@ import {
   SidebarMenuItem, SidebarProvider, SidebarSeparator, SidebarTrigger, useSidebar,
 } from './ui/shadcn/sidebar'
 
-const defaultPreferences: Preferences = { toolDirectory: '', outputDirectory: '', reduceMotion: false, theme: initialTheme }
+const defaultPreferences: Preferences = { toolDirectory: '', outputDirectory: '', reduceMotion: false, theme: initialTheme, welcomeSeen: false }
 const pages = {
   home: { label: '起始页', icon: House },
   cover: { label: '视频封面封装', icon: Clapperboard },
@@ -58,6 +59,10 @@ export function App() {
   const [startupFinished, setStartupFinished] = useState(false)
   const [engine, setEngine] = useState<EngineStatus>({ kind: 'checking' })
   const [settingsError, setSettingsError] = useState('')
+  const [notice, setNotice] = useState<'welcome' | 'animations'>()
+  const [update, setUpdate] = useState<UpdateResult>()
+  const [checkingUpdate, setCheckingUpdate] = useState(false)
+  const startupChecked = useRef(false)
   const engineRevision = useRef(0)
   const main = useRef<HTMLElement>(null)
   const movePageFocus = useRef(false)
@@ -96,12 +101,33 @@ export function App() {
     const revision = ++engineRevision.current
     setEngine({ kind: 'checking' })
     try {
-      const tools = await api.detect()
-      if (revision === engineRevision.current) setEngine({ kind: 'ready', tools })
+      const { tools, inPath, message } = await api.detect()
+      if (revision === engineRevision.current) setEngine(tools ? { kind: 'ready', tools, inPath } :
+        { kind: 'missing', message: message || '未找到可用的 FFmpeg 和 FFprobe。', inPath })
     } catch (reason) {
-      if (revision === engineRevision.current) setEngine({ kind: 'missing', message: errorText(reason) })
+      if (revision === engineRevision.current) setEngine({ kind: 'missing', message: errorText(reason), inPath: false })
     }
   }, [])
+
+  const checkUpdates = useCallback(async () => {
+    setCheckingUpdate(true)
+    try { setUpdate(await api.checkUpdates()) }
+    catch { setUpdate({ kind: 'error', message: '暂时无法检查更新，请稍后重试。' }) }
+    finally { setCheckingUpdate(false) }
+  }, [])
+
+  useEffect(() => {
+    if (!ready || startupChecked.current) return
+    startupChecked.current = true
+    if (!preferences.welcomeSeen) setNotice('welcome')
+    else if (systemReduced) setNotice('animations')
+    void checkUpdates()
+  }, [ready, preferences.welcomeSeen, systemReduced, checkUpdates])
+
+  async function dismissNotice() {
+    if (notice === 'welcome') setPreferences(await api.completeWelcome())
+    setNotice(undefined)
+  }
 
   useEffect(() => {
     void api.settings().then(setPreferences).catch((reason) => setSettingsError(errorText(reason)))
@@ -158,14 +184,14 @@ export function App() {
   }
 
   const views = {
-    home: <HomePage onOpenCover={() => navigate('cover')} onOpenLog={() => navigate('changelog')} />,
+    home: <HomePage onOpenCover={() => navigate('cover')} onOpenLog={() => navigate('changelog')} update={update} />,
     cover: <CoverPage active={page === 'cover'} engine={engine} preferences={preferences}
       onChooseOutput={async () => { setPreferences(await api.chooseDirectory('outputDirectory')) }}
       onOpenSettings={() => navigate('settings')} onRetry={() => void detect()} />,
     changelog: <ChangelogPage />,
     settings: <SettingsPage preferences={preferences} engine={engine} error={settingsError} systemReduced={systemReduced}
       onSave={saveSettings} onRetry={() => void detect()} />,
-    about: <AboutPage />,
+    about: <AboutPage update={update} checking={checkingUpdate} onCheck={checkUpdates} />,
   }
 
   return (
@@ -226,6 +252,9 @@ export function App() {
               })}
             </div>
           </SidebarInset>
+          {notice && <StartupNotice mode={notice} systemReduced={systemReduced} engine={engine}
+            customTools={Boolean(preferences.toolDirectory)} onClose={dismissNotice}
+            onSettings={async () => { await dismissNotice(); navigate('settings') }} />}
         </> : <Startup key={preferencesLoaded ? 'playing' : 'loading'} animated={preferencesLoaded && !reduced} />}
       </SidebarProvider>
     </MotionEnabledContext.Provider>

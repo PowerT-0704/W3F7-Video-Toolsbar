@@ -8,7 +8,7 @@ import qq from '../assets/qq.svg'
 import sponsor from '../assets/w3f7-sponsor.png'
 import { aboutCopy } from './about-copy'
 import { api, errorText } from '../workspace'
-import type { ExternalLinkId } from '../bridge'
+import type { ExternalLinkId, UpdateResult } from '../bridge'
 import { ActionButton } from '../ui/action-button'
 import { BlurFade } from '../ui/blur-fade'
 import { Alert, AlertDescription } from '../ui/shadcn/alert'
@@ -56,8 +56,7 @@ function SponsorCard() {
   )
 }
 
-export function AboutPage() {
-  const [notice, setNotice] = useState(0)
+export function AboutPage({ update, checking, onCheck }: { update?: UpdateResult; checking: boolean; onCheck: () => Promise<void> }) {
   const [linkError, setLinkError] = useState('')
 
   function openLink(id: ExternalLinkId) {
@@ -91,9 +90,16 @@ export function AboutPage() {
               <p className="whitespace-pre-line" data-about-copy>{aboutCopy}</p>
               <div className="flex flex-wrap gap-2">
                 <Button variant="outline" onClick={() => openLink('github')}><CodeXml />查看 GitHub 主页<ArrowUpRight /></Button>
-                <ActionButton variant="outline" onClick={() => setNotice((count) => count + 1)}><RefreshCw />检查更新</ActionButton>
+                <ActionButton variant="outline" disabled={checking} onClick={() => void onCheck()}><RefreshCw />{checking ? '正在检查更新' : '检查更新'}</ActionButton>
               </div>
-              <div role="status">{notice > 0 && <BlurFade key={notice}>更新服务待接入</BlurFade>}</div>
+              <div role="status">
+                {!checking && update?.kind === 'current' && '当前版本无需更新。'}
+                {!checking && update?.kind === 'error' && update.message}
+                {!checking && update?.kind === 'available' && <div className="flex flex-wrap items-center gap-2">
+                  <span>发现正式版 {update.version}</span>
+                  <Button size="sm" variant="outline" onClick={() => void api.openUpdate().catch((reason) => setLinkError(errorText(reason)))}>前往下载<ArrowUpRight /></Button>
+                </div>}
+              </div>
             </CardContent>
           </Card>
         </BlurFade>

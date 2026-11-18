@@ -7,6 +7,9 @@ import { useMotionEnabled } from '../ui/motion-policy'
 import { positionSpotlight } from '../ui/spotlight'
 import { Badge } from '../ui/shadcn/badge'
 import { Button } from '../ui/shadcn/button'
+import type { UpdateResult } from '../bridge'
+import { api, errorText } from '../workspace'
+import { useState } from 'react'
 
 export function Startup({ animated }: { animated: boolean }) {
   return (
@@ -21,8 +24,9 @@ export function Startup({ animated }: { animated: boolean }) {
   )
 }
 
-export function HomePage({ onOpenCover, onOpenLog }: { onOpenCover: () => void; onOpenLog: () => void }) {
+export function HomePage({ onOpenCover, onOpenLog, update }: { onOpenCover: () => void; onOpenLog: () => void; update?: UpdateResult }) {
   const enabled = useMotionEnabled()
+  const [error, setError] = useState('')
   return (
     <section className="page-layout home-page">
       <div className="home-hero spotlight-surface" onPointerMove={enabled ? positionSpotlight : undefined}>
@@ -42,6 +46,11 @@ export function HomePage({ onOpenCover, onOpenLog }: { onOpenCover: () => void; 
           <div className="film-emblem" aria-hidden="true"><Film /></div>
         </BlurFade>
       </div>
+      {update?.kind === 'available' && <div className="update-banner">
+        <span>发现正式版 <strong>{update.version}</strong></span>
+        <Button variant="outline" size="sm" onClick={() => void api.openUpdate().catch((reason) => setError(errorText(reason)))}>前往下载<ArrowRight /></Button>
+        {error && <p role="alert" className="text-destructive text-sm">{error}</p>}
+      </div>}
       <BlurFade className="home-footer" delay={0.13}>
         <footer>
           <span>W3F7のVideo_Toolsbar</span>

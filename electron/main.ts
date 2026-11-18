@@ -2,11 +2,13 @@ import { app, BrowserWindow, dialog, ipcMain, net, protocol, shell } from 'elect
 import type { IpcMainInvokeEvent } from 'electron'
 import { spawn } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
-import { stat, readFile, writeFile, rename } from 'node:fs/promises'
+import { stat, readFile, writeFile, rename, copyFile, rm } from 'node:fs/promises'
 import { basename, dirname, extname, isAbsolute, join } from 'node:path'
 import { createInterface } from 'node:readline'
 import { pathToFileURL } from 'node:url'
-import type { Asset, AssetKind, Preferences, Theme, ToolStatus, VideoDetails } from '../src/bridge'
+import type { Asset, AssetKind, Preferences, Theme, ToolCheck, ToolStatus, VideoDetails } from '../src/bridge'
+import { FrameStore, streamVideo } from './frames.cjs'
+import { createUpdateChecker } from './updates.cjs'
 
 type DirectorySetting = 'toolDirectory' | 'outputDirectory'
 type CoreRequest =
@@ -14,7 +16,7 @@ type CoreRequest =
   | { operation: 'inspect'; video: string }
   | { operation: 'export'; video: string; cover: string; outputDirectory: string }
 
-const defaultPreferences: Preferences = { toolDirectory: '', outputDirectory: '', reduceMotion: false, theme: 'dark' }
+const defaultPreferences: Preferences = { toolDirectory: '', outputDirectory: '', reduceMotion: false, theme: 'dark', welcomeSeen: false }
 const titleBars: Record<Theme, { color: string; symbolColor: string; height: number }> = {
   dark: { color: '#0a0a0a', symbolColor: '#d4d4d4', height: 40 },
   light: { color: '#f3f3f6', symbolColor: '#262630', height: 40 },
@@ -40,9 +42,15 @@ let exporting = false
 let preferenceWrites = Promise.resolve()
 const selected = new Map<AssetKind, Asset>()
 let selectionRevision = 0
+let frameRequest = 0
+let frameAction = false
+let videoDetails: { id: string; info: VideoDetails } | undefined
+let frameTools: { directory: string; tools?: ToolStatus } | undefined
+const frames = new FrameStore()
+const updates = createUpdateChecker(app.getVersion(), (url, options) => net.fetch(url, options))
 
 protocol.registerSchemesAsPrivileged([
-  { scheme: 'w3f7-media', privileges: { standard: true, secure: true, supportFetchAPI: true } },
+  { scheme: 'w3f7-media', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } },
 ])
 
 function preferencesPath() {
@@ -57,6 +65,7 @@ async function loadPreferences() {
       outputDirectory: typeof saved.outputDirectory === 'string' && isAbsolute(saved.outputDirectory) ? saved.outputDirectory : '',
       reduceMotion: saved.reduceMotion === true,
       theme: saved.theme === 'light' ? 'light' : 'dark',
+      welcomeSeen: saved.welcomeSeen === true,
     }
   } catch {
     preferences = defaultPreferences
@@ -76,7 +85,7 @@ async function savePreference<K extends keyof Preferences>(key: K, value: Prefer
   return preferences
 }
 
-function runCore<T>(request: CoreRequest, onProgress?: (percent: number) => void): Promise<T> {
+function runCore<T>(request: CoreRequest, onProgress?: (percent: number) => void, toolDirectory = preferences.toolDirectory): Promise<T> {
   const resources = app.isPackaged ? process.resourcesPath : app.getAppPath()
   const script = join(resources, 'core', 'cover.ps1')
   const systemRoot = process.env.SystemRoot || 'C:\\Windows'
@@ -85,7 +94,7 @@ function runCore<T>(request: CoreRequest, onProgress?: (percent: number) => void
     const child = spawn(powershell, ['-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', script, '-Json'], {
       cwd: dirname(script),
       windowsHide: true,
-      env: { ...process.env, W3F7_MEDIA_REQUEST: JSON.stringify({ ...request, toolDirectory: preferences.toolDirectory }) },
+      env: { ...process.env, W3F7_MEDIA_REQUEST: JSON.stringify({ ...request, toolDirectory }) },
     })
     let result: T | undefined
     let errorMessage = ''
@@ -111,6 +120,33 @@ function runCore<T>(request: CoreRequest, onProgress?: (percent: number) => void
   })
 }
 
+async function checkTools(): Promise<ToolCheck> {
+  const directory = preferences.toolDirectory
+  async function probe(path: string) {
+    try { return { tools: await runCore<ToolStatus>({ operation: 'detect' }, undefined, path) } }
+    catch (error) { return { message: error instanceof Error ? error.message : String(error) } }
+  }
+  const pathProbe = probe('')
+  const [path, effective] = await Promise.all([pathProbe, directory ? probe(directory) : pathProbe])
+  if (directory === preferences.toolDirectory) frameTools = { directory, tools: effective.tools }
+  return { inPath: Boolean(path.tools), ...effective }
+}
+
+async function inspectVideo(id: string) {
+  const asset = requireAsset('video', id)
+  if (videoDetails?.id === id) return videoDetails.info
+  const info = await runCore<VideoDetails>({ operation: 'inspect', video: asset.path })
+  if (selected.get('video')?.id === id) videoDetails = { id, info }
+  return info
+}
+
+function clearGeneratedCover() {
+  const previous = selected.get('cover')
+  if (!previous?.frameSource) return
+  selected.delete('cover')
+  void rm(previous.path, { force: true }).catch(() => {})
+}
+
 async function takeAsset(path: string): Promise<Asset> {
   const ext = extname(path).slice(1).toLowerCase()
   const kind = (Object.keys(extensions) as AssetKind[]).find((key) => extensions[key].includes(ext))
@@ -118,12 +154,11 @@ async function takeAsset(path: string): Promise<Asset> {
   const info = await stat(path)
   if (!info.isFile() || info.size === 0) throw new Error('所选文件为空或无法读取。')
   const id = randomUUID()
-  return { id, kind, name: basename(path), path, bytes: info.size,
-    ...(kind === 'cover' ? { preview: 'w3f7-media://cover/' + id } : {}) }
+  return { id, kind, name: basename(path), path, bytes: info.size, preview: `w3f7-media://${kind}/${id}` }
 }
 
 async function selectFiles(paths: unknown) {
-  if (exporting) throw new Error('当前导出完成后即可更换素材。')
+  if (exporting || frameAction) throw new Error('请在当前操作完成后更换素材。')
   if (!Array.isArray(paths) || paths.length < 1 || paths.length > 2 || !paths.every((item) => typeof item === 'string')) {
     throw new Error('请拖入一个 MP4 视频或一张封面，也可以同时拖入这两个文件。')
   }
@@ -132,7 +167,13 @@ async function selectFiles(paths: unknown) {
   if (assets.length === 2 && assets[0].kind === assets[1].kind) {
     throw new Error('请同时拖入一个 MP4 视频和一张封面。')
   }
-  if (revision !== selectionRevision || exporting) throw new Error('素材状态已变化，请重新选择。')
+  if (revision !== selectionRevision || exporting || frameAction) throw new Error('素材状态已变化，请重新选择。')
+  if (assets.some((asset) => asset.kind === 'video')) {
+    frameRequest++
+    frames.reset()
+    videoDetails = undefined
+  }
+  clearGeneratedCover()
   for (const asset of assets) selected.set(asset.kind, asset)
   return assets
 }
@@ -172,7 +213,7 @@ function registerHandlers() {
     return result.canceled ? null : (await selectFiles(result.filePaths))[0]
   })
   handle('assets:drop', selectFiles)
-  handle('assets:inspect', (id: string) => runCore<VideoDetails>({ operation: 'inspect', video: requireAsset('video', id).path }))
+  handle('assets:inspect', inspectVideo)
 
   handle('settings:get', () => preferences)
   handle('settings:motion', (enabled: boolean) => savePreference('reduceMotion', enabled === true))
@@ -194,10 +235,80 @@ function registerHandlers() {
     return result.canceled ? preferences : savePreference(setting, result.filePaths[0])
   })
   handle('settings:reset', (key: unknown) => savePreference(requireDirectorySetting(key), ''))
-  handle('settings:detect', () => runCore<ToolStatus>({ operation: 'detect' }))
+  handle('settings:detect', checkTools)
+  handle('welcome:complete', () => savePreference('welcomeSeen', true))
+  handle('settings:windows-animation', () => shell.openExternal('ms-settings:easeofaccess-visualeffects'))
+  handle('updates:check', updates.check)
+  handle('updates:open', async () => {
+    const page = updates.page()
+    if (page) await shell.openExternal(page)
+  })
+
+  handle('frame:extract', async (videoId: string, time: unknown, presented: unknown) => {
+    if (frameAction || exporting) throw new Error('请等待当前操作完成。')
+    if (typeof time !== 'number' || !Number.isFinite(time) || time < 0) throw new Error('无效的视频定位时间。')
+    const video = requireAsset('video', videoId)
+    const request = ++frameRequest
+    const tools = frameTools?.directory === preferences.toolDirectory ? frameTools.tools : (await checkTools()).tools
+    if (!tools) throw new Error('请先配置 FFmpeg 和 FFprobe。')
+    const details = await inspectVideo(videoId)
+    if (request !== frameRequest || frameAction || exporting) throw new Error('已取消旧的取帧请求。')
+    return frames.extract(tools.ffmpeg, video, details, time, presented === true)
+  })
+  handle('frame:cancel', (videoId: string) => {
+    if (selected.get('video')?.id !== videoId || frameAction) return
+    frameRequest++
+    frames.cancelPending()
+  })
+
+  async function withFrame<T>(id: string, action: (path: string, video: Asset, time: number) => Promise<T>) {
+    if (frameAction || exporting) throw new Error('请等待当前操作完成。')
+    const frame = frames.get(id)
+    if (!frame) throw new Error('请重新定位视频帧。')
+    const video = requireAsset('video', frame.videoId)
+    frameAction = true
+    // Keep this snapshot available while the save dialog is open.
+    frameRequest++
+    frames.cancelPending()
+    try { return await action(frame.path, video, frame.time) }
+    finally { frameAction = false }
+  }
+
+  function frameName(video: Asset, time: number) {
+    return `${basename(video.name, extname(video.name))}_frame_${Math.round(time * 1000)}ms.png`
+  }
+
+  handle('frame:use', (id: string) => withFrame(id, async (source, video, time) => {
+    const path = await frames.tempPath()
+    try {
+      await copyFile(source, path)
+      const cover = { ...await takeAsset(path), name: frameName(video, time), frameSource: video.id }
+      clearGeneratedCover()
+      selected.set('cover', cover)
+      lastOutput = ''
+      return cover
+    } catch (error) {
+      await rm(path, { force: true }).catch(() => {})
+      throw error
+    }
+  }))
+  handle('frame:save', (id: string) => withFrame(id, async (source, video, time) => {
+    const result = await dialog.showSaveDialog(appWindow!, {
+      title: '导出当前帧', defaultPath: join(dirname(video.path), frameName(video, time)),
+      filters: [{ name: 'PNG 图像', extensions: ['png'] }],
+    })
+    if (result.canceled || !result.filePath) return false
+    if (extname(result.filePath).toLowerCase() !== '.png') throw new Error('请选择 .png 文件名。')
+    const temporary = join(dirname(result.filePath), `.w3f7-frame-${randomUUID()}.tmp`)
+    try {
+      await copyFile(source, temporary)
+      await rename(temporary, result.filePath)
+    } finally { await rm(temporary, { force: true }).catch(() => {}) }
+    return true
+  }))
 
   handle('cover:export', async (videoId: string, coverId: string) => {
-    if (exporting) throw new Error('已有封装任务正在运行。')
+    if (exporting || frameAction) throw new Error('请等待当前操作完成。')
     const video = requireAsset('video', videoId)
     const cover = requireAsset('cover', coverId)
     exporting = true
@@ -237,9 +348,9 @@ function createWindow() {
   appWindow.webContents.session.setPermissionRequestHandler((_contents, _permission, callback) => callback(false))
   const painted = new Promise<void>((resolve) => window.once('ready-to-show', resolve))
   appWindow.on('close', (event) => {
-    if (exporting) {
+    if (exporting || frameAction) {
       event.preventDefault()
-      void dialog.showMessageBox(appWindow!, { message: '正在封装视频，完成后即可关闭窗口。' })
+      void dialog.showMessageBox(appWindow!, { message: '当前操作完成后即可关闭窗口。' })
     }
   })
   appWindow.on('closed', () => { appWindow = null })
@@ -258,16 +369,21 @@ if (app.requestSingleInstanceLock()) {
     await loadPreferences()
     protocol.handle('w3f7-media', (request) => {
       const url = new URL(request.url)
-      const cover = selected.get('cover')
-      if (!cover || url.hostname !== 'cover' || url.pathname !== '/' + cover.id) {
-        return new Response('Not found', { status: 404 })
+      if (url.hostname === 'video') {
+        const video = selected.get('video')
+        if (video && url.pathname === '/' + video.id) return streamVideo(request, video.path)
       }
-      return net.fetch(pathToFileURL(cover.path).href)
+      const picture = url.hostname === 'frame' ? frames.get(url.pathname.slice(1)) :
+        url.hostname === 'cover' ? selected.get('cover') : undefined
+      if (picture && url.pathname === '/' + picture.id) return net.fetch(pathToFileURL(picture.path).href)
+      return new Response('Not found', { status: 404 })
     })
     registerHandlers()
     createWindow()
   })
-  app.on('window-all-closed', () => app.quit())
+  app.on('window-all-closed', () => {
+    void frames.dispose().catch((error) => console.error('无法清理临时帧', error)).finally(() => app.quit())
+  })
 } else {
   app.quit()
 }

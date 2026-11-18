@@ -11,6 +11,15 @@ const releases = [
     version,
     date: import.meta.env.VITE_BUILT_AT as string,
     changes: [
+      '加入视频时间轴、预览播放、当前帧设为封面和 PNG 导出。',
+      '首次启动显示欢迎弹窗，检测 FFmpeg 和 Windows 动画设置。',
+      '启动后检查 GitHub 正式版，关于页提供手动检查。',
+    ],
+  },
+  {
+    version: '1.0.0',
+    date: '2026-11-17T20:18:56+08:00',
+    changes: [
       '发布 Windows x64 正式版，包含桌面便携包与单文件拖放批处理。',
       '侧栏新增分组分割线，固定展开时点击工作区空白即可收回。',
       '起始页底部加入居中的版本信息，关于页对齐作者和赞助卡片并放大收款码。',

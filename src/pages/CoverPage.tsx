@@ -17,6 +17,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '../ui/shad
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '../ui/shadcn/empty'
 import { Progress } from '../ui/shadcn/progress'
 import { Separator } from '../ui/shadcn/separator'
+import { VideoTimeline } from './VideoTimeline'
 
 interface CoverPageProps {
   active: boolean
@@ -72,6 +73,7 @@ export function CoverPage({ active, engine, preferences, onChooseOutput, onOpenS
   const [isSelecting, setIsSelecting] = useState(false)
   const [dragging, setDragging] = useState(false)
   const [exporting, setExporting] = useState(false)
+  const [frameBusy, setFrameBusy] = useState(false)
   const [progress, setProgress] = useState(0)
   const [output, setOutput] = useState('')
   const [error, setError] = useState('')
@@ -123,7 +125,7 @@ export function CoverPage({ active, engine, preferences, onChooseOutput, onOpenS
   const coverSize = currentCover && 'info' in currentCover ? currentCover.info : undefined
   const videoError = currentVideo && 'error' in currentVideo ? currentVideo.error : ''
   const coverError = currentCover && 'error' in currentCover ? currentCover.error : ''
-  const controlsBusy = isSelecting || exporting
+  const controlsBusy = isSelecting || exporting || frameBusy
   const canExport = Boolean(engine.kind === 'ready' && details && coverSize && !controlsBusy)
   const outputDirectory = preferences.outputDirectory || (video ? parentFolder(video.path) : '视频所在文件夹')
   const hasAssets = Boolean(video || cover)
@@ -136,6 +138,11 @@ export function CoverPage({ active, engine, preferences, onChooseOutput, onOpenS
     try {
       const assets = await action()
       if (!assets.length) return
+      if (assets.some((asset) => asset.kind === 'video') && cover?.frameSource) {
+        currentCoverId.current = undefined
+        setCoverReview(undefined)
+        setCover(undefined)
+      }
       for (const asset of assets) {
         if (asset.kind === 'video') setVideo(asset)
         else {
@@ -283,45 +290,50 @@ export function CoverPage({ active, engine, preferences, onChooseOutput, onOpenS
         </Empty>
       ) : (
         <div className="cover-grid">
-          <Card className="min-w-0 gap-4 pb-4 pt-5">
-            <CardHeader className="flex items-center justify-between gap-3">
-              <CardTitle>封面预览</CardTitle>
-              {coverSize && <span className="text-muted-foreground text-xs tabular-nums">{coverSize}</span>}
-            </CardHeader>
-            <CardContent>
-              <div className="preview-stage">
-                <AnimatePresence initial={animated}>
-                  {cover && !coverError && (
-                    <motion.img key={cover.id} src={cover.preview} alt="所选视频封面"
-                      initial={animated ? { opacity: 0, scale: 0.986 } : false}
-                      animate={{ opacity: coverSize ? 1 : 0, scale: 1 }} exit={{ opacity: 0 }}
-                      transition={{ duration: animated ? 0.23 : 0 }}
-                      onLoad={({ currentTarget }) => {
-                        if (currentCoverId.current === cover.id) {
-                          setCoverReview({ id: cover.id, info: currentTarget.naturalWidth + ' × ' + currentTarget.naturalHeight })
-                        }
-                      }}
-                      onError={() => {
-                        if (currentCoverId.current === cover.id) setCoverReview({ id: cover.id, error: '封面无法读取，请换一张 PNG、JPG 或 JPEG。' })
-                      }} />
+          <div className="grid min-w-0 gap-4">
+            {video && details && details.duration > 0 && <VideoTimeline key={video.id} video={video} details={details}
+              active={active} disabled={controlsBusy} onBusy={setFrameBusy}
+              onUseFrame={(id) => select(async () => [await api.useFrame(id)])} />}
+            <Card className="min-w-0 gap-4 pb-4 pt-5">
+              <CardHeader className="flex items-center justify-between gap-3">
+                <CardTitle>封面预览</CardTitle>
+                {coverSize && <span className="text-muted-foreground text-xs tabular-nums">{coverSize}</span>}
+              </CardHeader>
+              <CardContent>
+                <div className="preview-stage">
+                  <AnimatePresence initial={animated}>
+                    {cover && !coverError && (
+                      <motion.img key={cover.id} src={cover.preview} alt="所选视频封面"
+                        initial={animated ? { opacity: 0, scale: 0.986 } : false}
+                        animate={{ opacity: coverSize ? 1 : 0, scale: 1 }} exit={{ opacity: 0 }}
+                        transition={{ duration: animated ? 0.23 : 0 }}
+                        onLoad={({ currentTarget }) => {
+                          if (currentCoverId.current === cover.id) {
+                            setCoverReview({ id: cover.id, info: currentTarget.naturalWidth + ' × ' + currentTarget.naturalHeight })
+                          }
+                        }}
+                        onError={() => {
+                          if (currentCoverId.current === cover.id) setCoverReview({ id: cover.id, error: '封面无法读取，请换一张 PNG、JPG 或 JPEG。' })
+                        }} />
+                    )}
+                  </AnimatePresence>
+                  {(!cover || coverError) && (
+                    <Empty className="h-full border-0 p-4">
+                      <EmptyHeader>
+                        <EmptyMedia variant="icon"><ImageIcon /></EmptyMedia>
+                        <EmptyTitle>{coverError ? '无法预览封面' : '待导入封面'}</EmptyTitle>
+                      </EmptyHeader>
+                      <EmptyContent><Button variant="outline" size="sm" disabled={controlsBusy} onClick={() => pick('cover')}>选择封面</Button></EmptyContent>
+                    </Empty>
                   )}
-                </AnimatePresence>
-                {(!cover || coverError) && (
-                  <Empty className="h-full border-0 p-4">
-                    <EmptyHeader>
-                      <EmptyMedia variant="icon"><ImageIcon /></EmptyMedia>
-                      <EmptyTitle>{coverError ? '无法预览封面' : '待导入封面'}</EmptyTitle>
-                    </EmptyHeader>
-                    <EmptyContent><Button variant="outline" size="sm" disabled={controlsBusy} onClick={() => pick('cover')}>选择封面</Button></EmptyContent>
-                  </Empty>
-                )}
-              </div>
-              <div className={cn('replacement-drop text-muted-foreground mt-3', dragging && 'drop-active')} data-drop-zone="replacement">
-                {beam}
-                <Upload className="size-3.5" />{dragging ? '松开鼠标，导入素材' : '拖入文件以导入或替换素材'}
-              </div>
-            </CardContent>
-          </Card>
+                </div>
+                <div className={cn('replacement-drop text-muted-foreground mt-3', dragging && 'drop-active')} data-drop-zone="replacement">
+                  {beam}
+                  <Upload className="size-3.5" />{dragging ? '松开鼠标，导入素材' : '拖入文件以导入或替换素材'}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
 
           <Card className="min-w-0 gap-4 py-5">
             <CardHeader><CardTitle>素材与输出</CardTitle></CardHeader>

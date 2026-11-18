@@ -10,23 +10,42 @@ export interface Asset {
   path: string
   bytes: number
   preview?: string
+  frameSource?: string
 }
 export interface VideoDetails {
   width: number
   height: number
   duration: number
   codec: string
+  startTime: number
+  timeBase: number
+  videoEnd?: number
+}
+export interface VideoFrame {
+  id: string
+  time: number
+  preview: string
 }
 export interface ToolStatus {
   version: string
   ffmpeg: string
   ffprobe: string
 }
+export interface ToolCheck {
+  inPath: boolean
+  tools?: ToolStatus
+  message?: string
+}
+export type UpdateResult =
+  | { kind: 'available'; version: string }
+  | { kind: 'current' }
+  | { kind: 'error'; message: string }
 export interface Preferences {
   toolDirectory: string
   outputDirectory: string
   reduceMotion: boolean
   theme: Theme
+  welcomeSeen: boolean
 }
 export interface DesktopAPI {
   pick: (kind: AssetKind) => Promise<Asset | null>
@@ -37,7 +56,15 @@ export interface DesktopAPI {
   setTheme: (theme: Theme) => Promise<Preferences>
   chooseDirectory: (setting: 'toolDirectory' | 'outputDirectory') => Promise<Preferences>
   resetDirectory: (setting: 'toolDirectory' | 'outputDirectory') => Promise<Preferences>
-  detect: () => Promise<ToolStatus>
+  detect: () => Promise<ToolCheck>
+  completeWelcome: () => Promise<Preferences>
+  openAnimationSettings: () => Promise<void>
+  checkUpdates: () => Promise<UpdateResult>
+  openUpdate: () => Promise<void>
+  extractFrame: (videoId: string, time: number, presented: boolean) => Promise<VideoFrame>
+  cancelFrame: (videoId: string) => Promise<void>
+  useFrame: (id: string) => Promise<Asset>
+  saveFrame: (id: string) => Promise<boolean>
   exportCover: (video: string, cover: string) => Promise<{ path: string }>
   onProgress: (callback: (percent: number) => void) => () => void
   revealOutput: () => Promise<void>

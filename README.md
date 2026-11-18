@@ -23,6 +23,10 @@
 
 ## 快速开始
 
+### Windows 动画效果
+
+如果启动和页面切换的动画没有显示，可在 Windows「设置 → 辅助功能 → 视觉效果」开启「动画效果」。系统动画关闭时，应用会省略部分动效。应用「设置 → 外观」中的「减少动效」也可以单独开启。[微软动画设置说明](https://support.microsoft.com/zh-cn/accessibility/windows/make-it-easier-to-focus-on-tasks)
+
 ### 准备 FFmpeg
 
 1. 从 [FFmpeg 官方下载页](https://ffmpeg.org/download.html#build-windows) 进入 Windows 构建下载。把压缩包解压到固定目录，确认 `bin` 里同时有 `ffmpeg.exe` 和 `ffprobe.exe`。
@@ -46,6 +50,12 @@
 ### 单文件批处理
 
 选中一个 MP4 与一张静态 PNG/JPG/JPEG，一起拖到 [W3F7-Video-Cover.bat](W3F7-Video-Cover.bat)。脚本自动识别拖放顺序，在批处理文件所在目录生成 `原名_cover.mp4`。同名会生成 `原名_cover_2.mp4` 等编号文件。Windows 自带的 PowerShell 会运行脚本内嵌的处理核心。
+
+## v1.1 本地预览版
+
+- 选择 MP4 后，在「视频封面封装」页播放、暂停或拖动时间轴。定位完成后，应用显示实际取到的帧。可以将它设为封面，也可以另存为原分辨率 PNG。播放器遇到无法连续播放的编码时，仍可拖动定位，由 FFmpeg 显示选中的帧。
+- 首次启动显示欢迎和检测结果。默认从系统 PATH 查找 FFmpeg 和 FFprobe，也可以在「设置 → FFmpeg」选择 `bin` 目录。之后启动时若 Windows 动画仍关闭，会显示简短提醒。
+- 应用启动后查询 GitHub 上的最新正式版。「关于 → 检查更新」可手动重试，发现新版本时可前往 GitHub 下载。上方公开下载链接提供 v1.0.0 正式版。
 
 ## 封装与兼容性
 
