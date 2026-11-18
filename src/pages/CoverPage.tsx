@@ -306,41 +306,47 @@ export function CoverPage({ active, engine, preferences, onChooseOutput, onOpenS
             </Card>
           )}
 
+          <Card className="min-w-0 gap-3.5 py-5">
+            <CardHeader><CardTitle className="flex items-center gap-2"><ImageIcon className="text-muted-foreground size-4" />封面预览</CardTitle></CardHeader>
+            <CardContent>
+              <Dialog.Root>
+                <Dialog.Trigger asChild>
+                  <Button variant="outline" className="cover-preview-stage" disabled={!coverSize || Boolean(coverError)} aria-label="放大封面预览">
+                    <AnimatePresence initial={animated}>
+                      {cover && !coverError && <motion.img key={cover.id} src={cover.preview} alt="所选视频封面"
+                        initial={animated ? { opacity: 0, scale: 0.985 } : false}
+                        animate={{ opacity: coverSize ? 1 : 0, scale: 1 }} exit={{ opacity: 0 }} transition={{ duration: animated ? 0.2 : 0 }}
+                        onLoad={({ currentTarget }) => {
+                          if (currentCoverId.current === cover.id) setCoverReview({ id: cover.id, info: currentTarget.naturalWidth + ' × ' + currentTarget.naturalHeight })
+                        }}
+                        onError={() => {
+                          if (currentCoverId.current === cover.id) setCoverReview({ id: cover.id, error: '封面无法读取，请换一张 PNG、JPG 或 JPEG。' })
+                        }} />}
+                    </AnimatePresence>
+                    {coverSize && !coverError ? <span className="cover-enlarge"><Maximize2 /></span> :
+                      <span className="flex items-center gap-2"><ImageIcon />{coverError ? '无法预览封面' : cover ? '正在读取封面' : '选择图片或使用当前帧'}</span>}
+                  </Button>
+                </Dialog.Trigger>
+                {cover && <Dialog.Portal>
+                  <Dialog.Overlay className="qr-overlay" data-reduced={!animated} />
+                  <Dialog.Content className="qr-dialog cover-dialog" data-reduced={!animated} aria-describedby={undefined}>
+                    <div className="flex items-center justify-between gap-3">
+                      <Dialog.Title className="font-semibold">封面预览</Dialog.Title>
+                      <Dialog.Close asChild><Button size="icon-sm" variant="ghost" aria-label="关闭封面预览"><X /></Button></Dialog.Close>
+                    </div>
+                    <img src={cover.preview} alt="放大的视频封面" />
+                  </Dialog.Content>
+                </Dialog.Portal>}
+              </Dialog.Root>
+            </CardContent>
+          </Card>
+
           <div className="cover-inspector">
             <Card className="min-w-0 gap-3.5 py-5">
-              <CardHeader><CardTitle>素材与封面</CardTitle></CardHeader>
+              <CardHeader><CardTitle>素材</CardTitle></CardHeader>
               <CardContent className="grid gap-3.5">
                 <AssetRow kind="video" asset={video} info={details ? [details.width + ' × ' + details.height, durationLabel(details.duration), details.codec.toUpperCase()].join(' · ') : undefined} disabled={controlsBusy} onPick={() => pick('video')} />
                 <AssetRow kind="cover" asset={cover} info={cover && coverSize ? coverSize + ' · ' + sizeLabel(cover.bytes) : undefined} disabled={controlsBusy} onPick={() => pick('cover')} />
-                <Dialog.Root>
-                  <Dialog.Trigger asChild>
-                    <Button variant="outline" className="cover-thumbnail" disabled={!coverSize || Boolean(coverError)} aria-label="放大封面预览">
-                      <AnimatePresence initial={animated}>
-                        {cover && !coverError && <motion.img key={cover.id} src={cover.preview} alt="所选视频封面"
-                          initial={animated ? { opacity: 0, scale: 0.985 } : false}
-                          animate={{ opacity: coverSize ? 1 : 0, scale: 1 }} exit={{ opacity: 0 }} transition={{ duration: animated ? 0.2 : 0 }}
-                          onLoad={({ currentTarget }) => {
-                            if (currentCoverId.current === cover.id) setCoverReview({ id: cover.id, info: currentTarget.naturalWidth + ' × ' + currentTarget.naturalHeight })
-                          }}
-                          onError={() => {
-                            if (currentCoverId.current === cover.id) setCoverReview({ id: cover.id, error: '封面无法读取，请换一张 PNG、JPG 或 JPEG。' })
-                          }} />}
-                      </AnimatePresence>
-                      {coverSize && !coverError ? <span className="cover-enlarge"><Maximize2 /></span> :
-                        <span className="flex items-center gap-2"><ImageIcon />{coverError ? '无法预览封面' : '封面预览'}</span>}
-                    </Button>
-                  </Dialog.Trigger>
-                  {cover && <Dialog.Portal>
-                    <Dialog.Overlay className="qr-overlay" data-reduced={!animated} />
-                    <Dialog.Content className="qr-dialog cover-dialog" data-reduced={!animated} aria-describedby={undefined}>
-                      <div className="flex items-center justify-between gap-3">
-                        <Dialog.Title className="font-semibold">封面预览</Dialog.Title>
-                        <Dialog.Close asChild><Button size="icon-sm" variant="ghost" aria-label="关闭封面预览"><X /></Button></Dialog.Close>
-                      </div>
-                      <img src={cover.preview} alt="放大的视频封面" />
-                    </Dialog.Content>
-                  </Dialog.Portal>}
-                </Dialog.Root>
                 <div className={cn('replacement-drop text-muted-foreground', dragging && 'drop-active')} data-drop-zone="replacement">
                   {beam}
                   <Upload className="size-3.5" />{dragging ? '松开鼠标，导入素材' : '拖入文件以导入或替换素材'}

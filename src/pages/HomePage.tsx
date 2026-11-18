@@ -1,5 +1,5 @@
 import { ArrowRight, Clapperboard, Film, History } from 'lucide-react'
-import { motion, useAnimate } from 'motion/react'
+import { animate, motion, useMotionValue, useTransform } from 'motion/react'
 import { version } from '../../package.json'
 import { ActionButton } from '../ui/action-button'
 import { BlurFade } from '../ui/blur-fade'
@@ -25,18 +25,17 @@ export function Startup({ animated }: { animated: boolean }) {
 }
 
 function AnimatedFilmEmblem({ active }: { active: boolean }) {
-  const [scope, animate] = useAnimate<HTMLDivElement>()
+  const phase = useMotionValue(0)
+  const rotate = useTransform(phase, (progress) => -11 + progress * 360 - 12 * Math.sin(progress * 2 * Math.PI))
+  const x = useTransform(phase, (progress) => 7 * Math.sin(progress * 2 * Math.PI))
+  const y = useTransform(phase, (progress) => 5 * (Math.cos(progress * 2 * Math.PI) - 1))
   const playback = useRef<{ play: () => void; pause: () => void }>(undefined)
 
   useEffect(() => {
-    const controls = animate(scope.current, {
-      rotate: [-11, 349],
-      x: [0, -6, 2, 7, 0],
-      y: [0, -8, -3, 5, 0],
-    }, { duration: 8, repeat: Infinity, ease: [0.42, 0, 0.58, 1] })
+    const controls = animate(phase, [0, 1], { duration: 16, repeat: Infinity, ease: 'linear' })
     playback.current = controls
     return () => { playback.current = undefined; controls.stop() }
-  }, [animate, scope])
+  }, [phase])
 
   useEffect(() => {
     function updateVisibility() {
@@ -48,7 +47,7 @@ function AnimatedFilmEmblem({ active }: { active: boolean }) {
     return () => document.removeEventListener('visibilitychange', updateVisibility)
   }, [active])
 
-  return <div ref={scope} className="film-emblem" aria-hidden="true"><Film /></div>
+  return <motion.div style={{ rotate, x, y }} className="film-emblem" aria-hidden="true"><Film /></motion.div>
 }
 
 export function HomePage({ active, onOpenCover, onOpenLog, update }: {
