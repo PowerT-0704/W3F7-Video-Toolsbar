@@ -10,7 +10,7 @@
 [![MIT 许可](https://img.shields.io/badge/license-MIT-805abc)](LICENSE)
 [![FFmpeg](https://img.shields.io/badge/engine-FFmpeg-4e9a76)](https://ffmpeg.org/download.html#build-windows)
 
-[下载 Windows x64 安装版](https://github.com/PowerT-0704/W3F7-Video-Toolsbar/releases/download/v1.0.0/W3F7-Video-Toolsbar-1.0.0-Setup-x64.exe) · [下载便携版](https://github.com/PowerT-0704/W3F7-Video-Toolsbar/releases/download/v1.0.0/W3F7-Video-Toolsbar-1.0.0-win-x64.zip) · [发布说明与校验值](https://github.com/PowerT-0704/W3F7-Video-Toolsbar/releases/tag/v1.0.0)
+[下载 Windows x64 安装版](https://github.com/PowerT-0704/W3F7-Video-Toolsbar/releases/download/v1.1.1/W3F7-Video-Toolsbar-1.1.1-Setup-x64.exe) · [下载便携版](https://github.com/PowerT-0704/W3F7-Video-Toolsbar/releases/download/v1.1.1/W3F7-Video-Toolsbar-1.1.1-win-x64.zip) · [发布说明与校验值](https://github.com/PowerT-0704/W3F7-Video-Toolsbar/releases/tag/v1.1.1)
 
 [快速开始](#快速开始) · [资源管理器缩略图](#资源管理器缩略图) · [开发路线图](ROADMAP.md) · [验收记录](docs/verification.md)
 
@@ -51,13 +51,13 @@
 
 选中一个 MP4 与一张静态 PNG/JPG/JPEG，一起拖到 [W3F7-Video-Cover.bat](W3F7-Video-Cover.bat)。脚本自动识别拖放顺序，在批处理文件所在目录生成 `原名_cover.mp4`。同名会生成 `原名_cover_2.mp4` 等编号文件。Windows 自带的 PowerShell 会运行脚本内嵌的处理核心。
 
-## v1.1.1 本地修订版
+## v1.1.1 正式版
 
 - 起始页的胶片标识约 16 秒旋转一圈，深浅主题均支持。开启「减少动效」会显示静态标识。
 - 视频预览和时间轴位于第一行，独立封面预览、素材与输出设置位于下方。点击封面可放大查看。定位前后使用同一个播放器画面，当前帧可设为封面或另存为原分辨率 PNG。遇到无法连续播放的编码时，仍可通过 FFmpeg 拖动定位。
 - 「设置 → 存储与缓存」显示抽帧图片和临时封面的位置及占用。默认使用系统临时目录。更改位置或恢复默认时会立即迁移媒体缓存。「清理缓存」释放闲置文件，并保留当前帧、选中的封面和已导出文件。
 - 首次启动显示欢迎和检测结果。默认从系统 PATH 查找 FFmpeg 和 FFprobe，也可以在「设置 → FFmpeg」选择 `bin` 目录。之后启动时若 Windows 动画仍关闭，会显示简短提醒。
-- 应用启动后查询 GitHub 上的最新正式版。「关于 → 检查更新」可手动重试，发现新版本时可前往 GitHub 下载。v1.1.1 提供本地安装版和便携版，上方公开下载为 v1.0.0。
+- 应用启动后查询 GitHub 上的最新正式版。「关于 → 检查更新」可手动重试，发现新版本时可前往 GitHub 下载。
 
 ## 封装与兼容性
 
