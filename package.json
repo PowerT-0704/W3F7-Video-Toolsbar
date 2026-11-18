@@ -13,7 +13,8 @@
     "build": "npm run build:bat && npm run build:app",
     "prestart": "npm run build:app",
     "start": "electron .",
-    "package:win": "npm run build && node scripts/package-win.mjs"
+    "package:win": "npm run build && node scripts/package-win.mjs",
+    "package:installer": "node scripts/package-installer.mjs"
   },
   "dependencies": {
     "class-variance-authority": "0.7.1",

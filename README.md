@@ -10,7 +10,7 @@
 [![MIT 许可](https://img.shields.io/badge/license-MIT-805abc)](LICENSE)
 [![FFmpeg](https://img.shields.io/badge/engine-FFmpeg-4e9a76)](https://ffmpeg.org/download.html#build-windows)
 
-[下载 Windows x64 便携版](https://github.com/PowerT-0704/W3F7-Video-Toolsbar/releases/download/v1.0.0/W3F7-Video-Toolsbar-1.0.0-win-x64.zip) · [正式版发布说明与校验值](https://github.com/PowerT-0704/W3F7-Video-Toolsbar/releases/tag/v1.0.0)
+[下载 Windows x64 安装版](https://github.com/PowerT-0704/W3F7-Video-Toolsbar/releases/download/v1.0.0/W3F7-Video-Toolsbar-1.0.0-Setup-x64.exe) · [下载便携版](https://github.com/PowerT-0704/W3F7-Video-Toolsbar/releases/download/v1.0.0/W3F7-Video-Toolsbar-1.0.0-win-x64.zip) · [发布说明与校验值](https://github.com/PowerT-0704/W3F7-Video-Toolsbar/releases/tag/v1.0.0)
 
 [快速开始](#快速开始) · [资源管理器缩略图](#资源管理器缩略图) · [开发路线图](ROADMAP.md) · [验收记录](docs/verification.md)
 
@@ -36,6 +36,12 @@
 将鼠标移到左侧图标栏可展开导航，移开后会收回。用顶部按钮或 `Ctrl+B` 固定展开，点击工作区空白处可以收回。窄窗口用顶部按钮打开抽屉。在「设置 → 外观」可以切换深色和浅色，也可以减少动效。主题选择会在下次启动时恢复。
 
 把 MP4 和封面拖入虚线区域，可以一起拖，也可以逐个拖。页面会识别视频和 PNG、JPG、JPEG 封面，并分别显示到素材列表。也可以用「选择视频」「选择封面」导入。确认预览及保存位置，点击「封装封面」。完成后点击「在资源管理器中查看」。
+
+### Windows 安装版
+
+运行 `W3F7-Video-Toolsbar-1.0.0-Setup-x64.exe`，按中文向导选择目录并安装。默认安装在当前用户的 `%LOCALAPPDATA%\Programs\W3F7-Video-Toolsbar`，开始菜单会添加应用入口，桌面快捷方式可自行勾选。安装版同样需要外置 FFmpeg 和 FFprobe。
+
+可从 Windows「设置 → 应用」或开始菜单运行卸载程序。卸载会删除应用文件，个人设置和自己生成的文件保留。安装程序目前未签名。
 
 ### 单文件批处理
 
@@ -69,6 +75,7 @@ npm start
 - `npm start` 会先构建桌面应用，再启动 Electron。
 - `npm run build:bat` 更新单文件批处理。原始封装逻辑在 `core/cover.ps1`。
 - `npm run typecheck` 运行 TypeScript 检查。 `npm run package:win` 构建可解压运行的 ZIP，输出到 `artifacts`。
+- `npm run package:installer` 使用当前版本的便携 ZIP 构建安装版。需要 NSIS 3，将 `makensis.exe` 加入 PATH，或将 `W3F7_MAKENSIS` 设置为编译器的绝对路径。
 - FFmpeg 支持和本地文件操作由 Electron 主进程提供。界面包括起始页、封面工具、开发日志、设置与关于。
 - 原始样片、验收视频、便携 ZIP 与本地备份保留在工作区。可从 Git 快照重建交付包。
 
