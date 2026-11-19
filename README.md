@@ -4,7 +4,7 @@
 
 **面向视频与音频工作流的本地工具箱。**
 
-源码版本 **v1.2.2** · 已发布的 Windows 安装版与便携版 **v1.1.1**
+Windows x64 安装版与便携版 **v1.2.2**
 
 [![正式版](https://img.shields.io/github/v/release/PowerT-0704/W3F7-Video-Toolsbar?label=release)](https://github.com/PowerT-0704/W3F7-Video-Toolsbar/releases/latest)
 [![Release 附件累计下载](https://img.shields.io/github/downloads/PowerT-0704/W3F7-Video-Toolsbar/total?label=downloads)](https://github.com/PowerT-0704/W3F7-Video-Toolsbar/releases)
@@ -12,7 +12,7 @@
 [![MIT 许可](https://img.shields.io/badge/license-MIT-805abc)](LICENSE)
 [![FFmpeg](https://img.shields.io/badge/engine-FFmpeg-4e9a76)](https://ffmpeg.org/download.html#build-windows)
 
-[下载 Windows x64 安装版](https://github.com/PowerT-0704/W3F7-Video-Toolsbar/releases/download/v1.1.1/W3F7-Video-Toolsbar-1.1.1-Setup-x64.exe) · [下载便携版](https://github.com/PowerT-0704/W3F7-Video-Toolsbar/releases/download/v1.1.1/W3F7-Video-Toolsbar-1.1.1-win-x64.zip) · [发布说明与校验值](https://github.com/PowerT-0704/W3F7-Video-Toolsbar/releases/tag/v1.1.1)
+[下载 Windows x64 安装版](https://github.com/PowerT-0704/W3F7-Video-Toolsbar/releases/download/v1.2.2/W3F7-Video-Toolsbar-1.2.2-Setup-x64.exe) · [下载便携版](https://github.com/PowerT-0704/W3F7-Video-Toolsbar/releases/download/v1.2.2/W3F7-Video-Toolsbar-1.2.2-win-x64.zip) · [发布说明与校验值](https://github.com/PowerT-0704/W3F7-Video-Toolsbar/releases/tag/v1.2.2)
 
 [快速开始](#快速开始) · [音乐封面解析](#音乐封面解析) · [资源管理器缩略图](#资源管理器缩略图) · [开发路线图](ROADMAP.md) · [历史验收记录](docs/verification.md)
 
@@ -52,7 +52,7 @@
 
 ### 音乐封面解析
 
-音乐工具适用于 v1.2.2，请按[从源码运行](#从源码运行)启动该版本。
+音乐工具包含在 v1.2.2 的 Windows 安装版和便携版中。
 
 1. 从起始页或侧栏打开「音乐封面解析」，选择或拖入一首 FLAC 或 MP3。可试听、拖动进度、另存内嵌封面原图或导出 UTF-8 LRC。
 2. 通过「重选封面」导入 JPG、JPEG 或 PNG。非方图可拖动选框或调整选区大小。新正面封面为 1:1，边长最多 1000 px，体积最多 1 MiB，透明 PNG 保留透明度。
