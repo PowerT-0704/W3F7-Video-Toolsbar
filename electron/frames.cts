@@ -135,7 +135,7 @@ export class FrameStore {
   }
 }
 
-export async function streamVideo(request: Request, path: string) {
+export async function streamLocalMedia(request: Request, path: string, contentType: string) {
   if (request.method !== 'GET' && request.method !== 'HEAD') return new Response(null, { status: 405 })
   const info = await stat(path).catch(() => null)
   if (!info?.isFile() || !info.size) return new Response(null, { status: 404 })
@@ -143,7 +143,7 @@ export async function streamVideo(request: Request, path: string) {
   let start = 0
   let end = size - 1
   const range = request.headers.get('range')
-  const headers = new Headers({ 'Content-Type': 'video/mp4', 'Accept-Ranges': 'bytes', 'Cache-Control': 'no-store' })
+  const headers = new Headers({ 'Content-Type': contentType, 'Accept-Ranges': 'bytes', 'Cache-Control': 'no-store' })
   if (range) {
     const parts = /^bytes=(\d*)-(\d*)$/.exec(range)
     if (!parts || (!parts[1] && !parts[2])) return new Response(null, { status: 416, headers: { 'Content-Range': `bytes */${size}` } })

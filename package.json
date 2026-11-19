@@ -1,11 +1,11 @@
 {
   "name": "w3f7-video-toolsbar",
-  "version": "1.1.1",
+  "version": "1.2.2",
   "license": "MIT",
   "private": true,
   "type": "module",
   "main": "dist-electron/main.cjs",
-  "description": "W3F7のVideo_Toolsbar · Local video cover tools",
+  "description": "W3F7のVideo_Toolsbar · Local tools for video and audio workflows",
   "scripts": {
     "build:bat": "node scripts/build-bat.mjs",
     "typecheck": "tsc --noEmit",

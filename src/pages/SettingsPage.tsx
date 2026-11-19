@@ -1,17 +1,19 @@
-import { AlertCircle, ArrowUpRight, FolderOpen, MonitorPlay, Moon, RotateCw, Sun } from 'lucide-react'
-import type { Preferences } from '../bridge'
+import { AlertCircle, ArrowUpRight, FolderOpen, MonitorPlay, RotateCw } from 'lucide-react'
+import type { Preferences, Theme } from '../bridge'
 import { api, type EngineStatus } from '../workspace'
 import { Alert, AlertDescription } from '../ui/shadcn/alert'
 import { Button } from '../ui/shadcn/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/shadcn/card'
 import { Separator } from '../ui/shadcn/separator'
 import { Switch } from '../ui/shadcn/switch'
+import { ThemeMorphToggle } from '../ui/theme-morph-toggle'
 import { StorageSettings } from './StorageSettings'
 
 type DirectorySetting = 'toolDirectory' | 'outputDirectory'
 
-export function SettingsPage({ preferences, engine, error, systemReduced, onSave, onRetry, onPreferences }: {
-  preferences: Preferences; engine: EngineStatus; error: string; systemReduced: boolean
+export function SettingsPage({ active, preferences, engine, error, systemReduced, themePending, onThemeChange, onSave, onRetry, onPreferences }: {
+  active: boolean; preferences: Preferences; engine: EngineStatus; error: string; systemReduced: boolean
+  themePending: boolean; onThemeChange: (theme: Theme) => Promise<boolean>
   onSave: (action: () => Promise<Preferences>, recheck?: boolean) => Promise<void>
   onRetry: () => void
   onPreferences: (preferences: Preferences) => void
@@ -37,12 +39,7 @@ export function SettingsPage({ preferences, engine, error, systemReduced, onSave
         <CardContent className="grid gap-4">
           <div className="setting-row">
             <span className="text-sm font-medium">主题</span>
-            <div className="theme-options" role="group" aria-label="主题">
-              <Button size="sm" variant="ghost" aria-pressed={preferences.theme === 'dark'}
-                onClick={() => void onSave(() => api.setTheme('dark'))}><Moon />深色</Button>
-              <Button size="sm" variant="ghost" aria-pressed={preferences.theme === 'light'}
-                onClick={() => void onSave(() => api.setTheme('light'))}><Sun />浅色</Button>
-            </div>
+            <ThemeMorphToggle theme={preferences.theme} onThemeChange={onThemeChange} active={active} pending={themePending} />
           </div>
           <Separator />
           <div className="setting-row">

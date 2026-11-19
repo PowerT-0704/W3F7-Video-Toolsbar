@@ -2,7 +2,9 @@
 
 # W3F7のVideo_Toolsbar
 
-**给 MP4 装上自己的封面，保留视频和音频的原始编码。**
+**面向视频与音频工作流的本地工具箱。**
+
+源码版本 **v1.2.2** · 已发布的 Windows 安装版与便携版 **v1.1.1**
 
 [![正式版](https://img.shields.io/github/v/release/PowerT-0704/W3F7-Video-Toolsbar?label=release)](https://github.com/PowerT-0704/W3F7-Video-Toolsbar/releases/latest)
 [![Release 附件累计下载](https://img.shields.io/github/downloads/PowerT-0704/W3F7-Video-Toolsbar/total?label=downloads)](https://github.com/PowerT-0704/W3F7-Video-Toolsbar/releases)
@@ -12,7 +14,7 @@
 
 [下载 Windows x64 安装版](https://github.com/PowerT-0704/W3F7-Video-Toolsbar/releases/download/v1.1.1/W3F7-Video-Toolsbar-1.1.1-Setup-x64.exe) · [下载便携版](https://github.com/PowerT-0704/W3F7-Video-Toolsbar/releases/download/v1.1.1/W3F7-Video-Toolsbar-1.1.1-win-x64.zip) · [发布说明与校验值](https://github.com/PowerT-0704/W3F7-Video-Toolsbar/releases/tag/v1.1.1)
 
-[快速开始](#快速开始) · [资源管理器缩略图](#资源管理器缩略图) · [开发路线图](ROADMAP.md) · [验收记录](docs/verification.md)
+[快速开始](#快速开始) · [音乐封面解析](#音乐封面解析) · [资源管理器缩略图](#资源管理器缩略图) · [开发路线图](ROADMAP.md) · [历史验收记录](docs/verification.md)
 
 </div>
 
@@ -20,6 +22,13 @@
 <img src="docs/preview.png" width="900" alt="W3F7のVideo_Toolsbar 深色视频工作区与独立封面预览">
 <img src="docs/preview-light.png" width="900" alt="W3F7のVideo_Toolsbar 浅色视频工作区与独立封面预览">
 </div>
+
+## 本地工具
+
+| 工具 | 格式 | 能做什么 |
+| --- | --- | --- |
+| 视频封面封装 | MP4 | 播放和定位视频，将当前帧或本地图片写入封面，保留原有音视频编码 |
+| 音乐封面解析 · v1.2.2 | FLAC、MP3 | 试听、预览与导出封面和歌词，裁剪新封面，并将封面或 LRC 写入同格式副本 |
 
 ## 快速开始
 
@@ -31,15 +40,24 @@
 
 1. 从 [FFmpeg 官方下载页](https://ffmpeg.org/download.html#build-windows) 进入 Windows 构建下载。把压缩包解压到固定目录，确认 `bin` 里同时有 `ffmpeg.exe` 和 `ffprobe.exe`。
 2. 将 `bin` 的绝对路径加入 Windows 用户 PATH，重开终端和工具，执行 `ffmpeg -version` 与 `ffprobe -version`。桌面版也能在「设置 → FFmpeg」直接选择 `bin` 文件夹。
-3. FFmpeg 负责复制音视频轨并写入封面，FFprobe 负责识别轨道、验证成品。便携包使用外置 FFmpeg。
+3. FFmpeg 用于视频封装、抽帧和音乐封面提取，FFprobe 用于识别媒体和校验成品。安装版与便携版均使用外置 FFmpeg。
 
 ### 桌面便携版
 
-完整解压 Windows x64 ZIP 后打开 `W3F7-Video-Toolsbar.exe`。启动后进入起始页，可从首页或侧栏打开「视频封面封装」。FFmpeg 和 FFprobe 在后台自动检测，结果显示在工具页。
+完整解压 Windows x64 ZIP 后打开 `W3F7-Video-Toolsbar.exe`。启动后进入起始页，可从首页或侧栏进入工具。FFmpeg 和 FFprobe 在后台自动检测，结果显示在工具页。
 
 将鼠标移到左侧图标栏可展开导航，移开后会收回。用顶部按钮或 `Ctrl+B` 固定展开，点击工作区空白处可以收回。窄窗口用顶部按钮打开抽屉。在「设置 → 外观」可以切换深色和浅色，也可以减少动效。主题选择会在下次启动时恢复。
 
 把 MP4 和封面拖入虚线区域，可以一起拖，也可以逐个拖。页面会识别视频和 PNG、JPG、JPEG 封面，并分别显示到素材列表。也可以用「选择视频」「选择封面」导入。确认预览及保存位置，点击「封装封面」。完成后点击「在资源管理器中查看」。
+
+### 音乐封面解析
+
+音乐工具适用于 v1.2.2，请按[从源码运行](#从源码运行)启动该版本。
+
+1. 从起始页或侧栏打开「音乐封面解析」，选择或拖入一首 FLAC 或 MP3。可试听、拖动进度、另存内嵌封面原图或导出 UTF-8 LRC。
+2. 通过「重选封面」导入 JPG、JPEG 或 PNG。非方图可拖动选框或调整选区大小。新正面封面为 1:1，边长最多 1000 px，体积最多 1 MiB，透明 PNG 保留透明度。
+3. 导入本地 LRC 可立即预览歌词，带时间戳的歌词随播放高亮。切离音乐页时暂停，返回可从原进度继续。
+4. 点击「另存音频副本」写入待封装的封面或歌词。两项可一次保存，原始音频数据和其他附图跟随副本保留。
 
 ### Windows 安装版
 
@@ -51,20 +69,31 @@
 
 选中一个 MP4 与一张静态 PNG/JPG/JPEG，一起拖到 [W3F7-Video-Cover.bat](W3F7-Video-Cover.bat)。脚本自动识别拖放顺序，在批处理文件所在目录生成 `原名_cover.mp4`。同名会生成 `原名_cover_2.mp4` 等编号文件。Windows 自带的 PowerShell 会运行脚本内嵌的处理核心。
 
-## v1.1.1 正式版
+## v1.2.2 更新
 
-- 起始页的胶片标识约 16 秒旋转一圈，深浅主题均支持。开启「减少动效」会显示静态标识。
-- 视频预览和时间轴位于第一行，独立封面预览、素材与输出设置位于下方。点击封面可放大查看。定位前后使用同一个播放器画面，当前帧可设为封面或另存为原分辨率 PNG。遇到无法连续播放的编码时，仍可通过 FFmpeg 拖动定位。
-- 「设置 → 存储与缓存」显示抽帧图片和临时封面的位置及占用。默认使用系统临时目录。更改位置或恢复默认时会立即迁移媒体缓存。「清理缓存」释放闲置文件，并保留当前帧、选中的封面和已导出文件。
-- 首次启动显示欢迎和检测结果。默认从系统 PATH 查找 FFmpeg 和 FFprobe，也可以在「设置 → FFmpeg」选择 `bin` 目录。之后启动时若 Windows 动画仍关闭，会显示简短提醒。
-- 应用启动后查询 GitHub 上的最新正式版。「关于 → 检查更新」可手动重试，发现新版本时可前往 GitHub 下载。
+- 音乐页增加正面封面裁剪、试听和歌词联动。进度条流光遵循系统和应用的减少动效设置。
+- 设置页使用支持点击和拖动的深浅主题开关，切换时同步预览界面和标题栏配色。
+- 修复从「设置」或「关于」切回上方工具时侧栏短暂出现的滚动条，并校正窄窗抽屉的分割线宽度。
+
+## 设置与更新
+
+- 「设置 → 存储与缓存」可查看抽帧和临时封面的占用、迁移缓存位置或清理闲置缓存。
+- 应用会在启动后查询 GitHub 上的最新正式版，也可在「关于 → 检查更新」手动查询。
 
 ## 封装与兼容性
+
+### 视频
 
 - FFmpeg 写入 MP4 的内嵌封面，视频、音频和其他兼容轨使用流复制。原始视频和封面文件保留。已有内嵌封面时，成品使用新图。
 - 支持静态 PNG、JPG、JPEG。图像会先解码校验，再以原始图像数据写入封面。章节按原章节表保存。样片的时间码轨按原时间码重建并校验。
 - 导出用同目录临时文件，媒体轨无法复制或成品校验失败时会显示错误。再次导出可使用同样的素材。
 - 各播放器和上传平台采用各自的缩略图规则。内嵌封面跟随 MP4 文件保存。
+
+### 音乐
+
+- 封装生成 FLAC 或 MP3 副本。新封面写入正面封面标签，背面等其他附图保留。
+- LRC 导入支持 UTF-8、带 BOM 的 UTF-16 和 GB18030，导出使用 UTF-8。MP3 的毫秒制 SYLT 歌词可转成 LRC，播放器能否显示歌词取决于其标签支持。
+- 源图读取上限为 64 MiB。遇到受保护或无法安全改写的标签时，音乐页会说明封装限制。
 
 ## 资源管理器缩略图
 
@@ -87,8 +116,9 @@ npm start
 - `npm start` 会先构建桌面应用，再启动 Electron。
 - `npm run build:bat` 更新单文件批处理。原始封装逻辑在 `core/cover.ps1`。
 - `npm run typecheck` 运行 TypeScript 检查。 `npm run package:win` 构建可解压运行的 ZIP，输出到 `artifacts`。
+- 音乐标签回归测试可在 `npm run build:app` 后运行 `node --test tests/music.test.cjs`，测试使用 PATH 中的 FFmpeg 和 FFprobe。
 - `npm run package:installer` 使用当前版本的便携 ZIP 构建安装版。需要 NSIS 3，将 `makensis.exe` 加入 PATH，或将 `W3F7_MAKENSIS` 设置为编译器的绝对路径。
-- FFmpeg 支持和本地文件操作由 Electron 主进程提供。界面包括起始页、封面工具、开发日志、设置与关于。
+- FFmpeg 支持和本地文件操作由 Electron 主进程提供。界面包括视频封面封装、音乐封面解析、开发日志、设置与关于。
 - 原始样片、验收视频、便携 ZIP 与本地备份保留在工作区。可从 Git 快照重建交付包。
 
 ## 致谢

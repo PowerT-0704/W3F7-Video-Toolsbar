@@ -1,0 +1,115 @@
+.theme-morph-toggle {
+  position: relative;
+  isolation: isolate;
+  flex: none;
+  width: 76px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 18px;
+  background: transparent;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.theme-morph-toggle:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 4px;
+}
+
+.theme-morph-toggle[data-pending] { cursor: progress; }
+.theme-morph-toggle:is(:active, [data-dragging]):not([data-pending]) { cursor: grabbing; }
+
+.theme-morph-track,
+.theme-morph-reflection,
+.theme-morph-face,
+.theme-morph-sweep,
+.theme-morph-glyph,
+.theme-morph-thumb { pointer-events: none; }
+
+.theme-morph-track {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 1px solid #272831;
+  background: radial-gradient(ellipse at 22% 100%, #242732 0%, transparent 60%), linear-gradient(157deg, #09090d, #17181d 85%);
+  box-shadow: inset 0 3px 8px #050508c9, inset 0 -1px 0 #b3bde213, 0 2px 5px #0005;
+}
+
+.theme-morph-track-day {
+  border-color: #eee5d7;
+  background: linear-gradient(151deg, #fffdf7 0%, #fff 61%, #fffbf1 100%);
+  box-shadow: inset 0 1px 3px #c5a26a19, inset 0 -1px 0 #fff, 0 1px 3px #b69b701f;
+}
+
+.theme-morph-thumb {
+  position: absolute;
+  isolation: isolate;
+  top: 3px;
+  left: 3px;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+}
+
+.theme-morph-reflection {
+  position: absolute;
+  inset: -8px -10px;
+  background: radial-gradient(ellipse at center, color-mix(in srgb, currentColor 78%, transparent), transparent 73%);
+}
+
+.theme-morph-face {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 1px solid #c2c6eb38;
+  background:
+    radial-gradient(ellipse at 65% -20%, #a2a9cb75, transparent 70%),
+    linear-gradient(155deg, #3c3e49, #262933 49%, #292a37 83%, #414666);
+  box-shadow: inset 0 1px 1px #eef0ff2b, inset 0 -1px 2px #9da8f337, 0 3px 7px #010207b5;
+}
+
+.theme-morph-face-day {
+  border-color: #fff9e5;
+  background:
+    radial-gradient(ellipse at 78% -20%, #fff0bf 0%, #fff8e187 41%, transparent 72%),
+    linear-gradient(152deg, #fff, #fffef9 72%, #fbf4e5);
+  box-shadow: inset 0 1px 1px #fff, inset 0 -1px 2px #dfbf8126, 0 2px 4px #b89a6b2b;
+}
+
+.theme-morph-glyph {
+  position: relative;
+  display: block;
+  width: 19.5px;
+  height: 19.5px;
+}
+
+.theme-morph-pixel {
+  position: absolute;
+  top: -0.5px;
+  left: -0.5px;
+  width: 1px;
+  height: 1px;
+  background: currentColor;
+}
+
+.theme-morph-sweep {
+  position: absolute;
+  inset: -6px;
+  width: 42px;
+  height: 42px;
+  overflow: visible;
+}
+
+.theme-morph-halo { filter: blur(1.8px); }
+
+.theme-morph-toggle:is(:active, [data-pending]) .theme-morph-face { filter: brightness(0.98); }
+
+@media (forced-colors: active) {
+  .theme-morph-track, .theme-morph-face { border-color: ButtonText; }
+  .theme-morph-toggle:focus-visible { outline-color: Highlight; }
+  .theme-morph-pixel { background: ButtonText; }
+}

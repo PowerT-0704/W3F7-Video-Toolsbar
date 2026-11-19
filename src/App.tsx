@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { CSSProperties, MouseEvent } from 'react'
-import { Clapperboard, History, House, Info, Settings2 } from 'lucide-react'
+import { Clapperboard, FileMusic, History, House, Info, Settings2 } from 'lucide-react'
 import { LayoutGroup, motion } from 'motion/react'
-import type { Page, Preferences, UpdateResult } from './bridge'
+import type { Page, Preferences, Theme, UpdateResult } from './bridge'
 import { api, applyTheme, errorText, initialTheme, type EngineStatus } from './workspace'
 import { AboutPage } from './pages/AboutPage'
 import { ChangelogPage } from './pages/ChangelogPage'
 import { CoverPage } from './pages/CoverPage'
 import { HomePage, Startup } from './pages/HomePage'
+import { MusicPage } from './pages/MusicPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { StartupNotice } from './pages/StartupNotice'
 import { useHoverSidebar } from './ui/hover-sidebar'
@@ -21,6 +22,7 @@ const defaultPreferences: Preferences = { toolDirectory: '', outputDirectory: ''
 const pages = {
   home: { label: '起始页', icon: House },
   cover: { label: '视频封面封装', icon: Clapperboard },
+  music: { label: '音乐封面解析', icon: FileMusic },
   changelog: { label: '开发日志', icon: History },
   settings: { label: '设置', icon: Settings2 },
   about: { label: '关于', icon: Info },
@@ -32,6 +34,7 @@ function NavigationItem({ page, current, onNavigate }: { page: Page; current: Pa
   const { isMobile, setOpenMobile } = useSidebar()
   const animated = useMotionEnabled()
   const active = page === current
+  const highlight = page === 'settings' || page === 'about' ? 'active-footer' : 'active-tool'
   function navigate() {
     onNavigate(page)
     if (isMobile) setOpenMobile(false)
@@ -42,8 +45,9 @@ function NavigationItem({ page, current, onNavigate }: { page: Page; current: Pa
         className={animated ? 'animated-nav data-[active=true]:bg-transparent' : undefined}
         tooltip={label} aria-label={label} onClick={navigate}>
         {animated && active && (
-          <motion.span layoutId="active-tool" aria-hidden="true" className="nav-highlight"
-            initial={false} transition={{ type: 'spring', stiffness: 520, damping: 42 }} />
+          <motion.span layoutId={highlight} aria-hidden="true" className="nav-highlight"
+            initial={{ opacity: 0.4 }} animate={{ opacity: 1 }}
+            transition={{ layout: { type: 'spring', stiffness: 520, damping: 42 }, opacity: { duration: 0.12 } }} />
         )}
         <Icon /><span className="nav-label">{label}</span>
       </SidebarMenuButton>
@@ -59,10 +63,12 @@ export function App() {
   const [startupFinished, setStartupFinished] = useState(false)
   const [engine, setEngine] = useState<EngineStatus>({ kind: 'checking' })
   const [settingsError, setSettingsError] = useState('')
+  const [themePending, setThemePending] = useState(false)
   const [notice, setNotice] = useState<'welcome' | 'animations'>()
   const [update, setUpdate] = useState<UpdateResult>()
   const [checkingUpdate, setCheckingUpdate] = useState(false)
   const startupChecked = useRef(false)
+  const savingTheme = useRef(false)
   const engineRevision = useRef(0)
   const main = useRef<HTMLElement>(null)
   const movePageFocus = useRef(false)
@@ -183,13 +189,35 @@ export function App() {
     }
   }
 
+  async function changeTheme(next: Theme) {
+    if (savingTheme.current || next === preferences.theme) return false
+    savingTheme.current = true
+    setThemePending(true)
+    let saved = false
+    try {
+      await saveSettings(async () => {
+        const preferences = await api.setTheme(next)
+        saved = preferences.theme === next
+        return preferences
+      })
+      return saved
+    }
+    finally {
+      savingTheme.current = false
+      setThemePending(false)
+    }
+  }
+
   const views = {
-    home: <HomePage active={page === 'home'} onOpenCover={() => navigate('cover')} onOpenLog={() => navigate('changelog')} update={update} />,
+    home: <HomePage active={page === 'home'} onOpenCover={() => navigate('cover')} onOpenMusic={() => navigate('music')}
+      onOpenLog={() => navigate('changelog')} update={update} />,
     cover: <CoverPage active={page === 'cover'} engine={engine} preferences={preferences}
       onChooseOutput={async () => { setPreferences(await api.chooseDirectory('outputDirectory')) }}
       onOpenSettings={() => navigate('settings')} onRetry={() => void detect()} />,
+    music: <MusicPage active={page === 'music'} engine={engine} onOpenSettings={() => navigate('settings')} onRetry={() => void detect()} />,
     changelog: <ChangelogPage />,
-    settings: <SettingsPage preferences={preferences} engine={engine} error={settingsError} systemReduced={systemReduced}
+    settings: <SettingsPage active={page === 'settings'} preferences={preferences} engine={engine} error={settingsError} systemReduced={systemReduced}
+      themePending={themePending} onThemeChange={changeTheme}
       onSave={saveSettings} onRetry={() => void detect()} onPreferences={setPreferences} />,
     about: <AboutPage update={update} checking={checkingUpdate} onCheck={checkUpdates} />,
   }
@@ -218,7 +246,10 @@ export function App() {
                 <SidebarSeparator />
                 <SidebarGroup>
                   <SidebarGroupLabel>Tools_list</SidebarGroupLabel>
-                  <SidebarMenu aria-label="Tools_list"><NavigationItem page="cover" current={page} onNavigate={navigate} /></SidebarMenu>
+                  <SidebarMenu aria-label="Tools_list">
+                    <NavigationItem page="cover" current={page} onNavigate={navigate} />
+                    <NavigationItem page="music" current={page} onNavigate={navigate} />
+                  </SidebarMenu>
                 </SidebarGroup>
                 <SidebarSeparator />
                 <SidebarGroup>
@@ -240,7 +271,7 @@ export function App() {
             <div className="workspace-container">
               {(Object.keys(views) as Page[]).map((id) => {
                 const phase = id === page ? 'active' : id === outgoing?.page ? 'exiting' : 'idle'
-                if (phase === 'idle' && id !== 'cover') return null
+                if (phase === 'idle' && id !== 'cover' && id !== 'music') return null
                 return (
                   <div key={id} className="page-viewport" data-page={id} data-page-state={phase}
                     hidden={phase === 'idle'} inert={phase !== 'active'} tabIndex={-1}>

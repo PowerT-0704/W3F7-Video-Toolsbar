@@ -6,9 +6,11 @@ import { stat, readFile, writeFile, rename, copyFile, rm } from 'node:fs/promise
 import { basename, dirname, extname, isAbsolute, join } from 'node:path'
 import { createInterface } from 'node:readline'
 import { pathToFileURL } from 'node:url'
-import type { Asset, AssetKind, Preferences, Theme, ToolCheck, ToolStatus, VideoDetails } from '../src/bridge'
-import { FrameStore, streamVideo } from './frames.cjs'
+import type { Asset, AssetKind, MusicExport, Preferences, SquareCrop, Theme, ToolCheck, ToolStatus, VideoDetails } from '../src/bridge'
+import { FrameStore, streamLocalMedia } from './frames.cjs'
 import { MediaCache } from './media-cache.cjs'
+import { MusicWorkspace } from './music.cjs'
+import { MusicArtwork } from './music-artwork.cjs'
 import { createUpdateChecker } from './updates.cjs'
 
 type DirectorySetting = 'toolDirectory' | 'outputDirectory'
@@ -22,6 +24,7 @@ const titleBars: Record<Theme, { color: string; symbolColor: string; height: num
   dark: { color: '#0a0a0a', symbolColor: '#d4d4d4', height: 40 },
   light: { color: '#f3f3f6', symbolColor: '#262630', height: 40 },
 }
+const transparentTitleBar = '#00000000'
 const links = {
   website: "https://w3f7.cn",
   bilibili: "https://space.bilibili.com/1135924891?spm_id_from=333.1007.0.0",
@@ -38,6 +41,8 @@ const links = {
 const extensions = { video: ['mp4'], cover: ['png', 'jpg', 'jpeg'] }
 let preferences = defaultPreferences
 let appWindow: BrowserWindow | null = null
+let previewTitleBarTone: Theme | null = null
+let shownTitleBarTone: Theme | undefined
 let lastOutput = ''
 let exporting = false
 let preferenceWrites = Promise.resolve()
@@ -45,16 +50,27 @@ const selected = new Map<AssetKind, Asset>()
 let selectionRevision = 0
 let frameRequest = 0
 let frameAction = false
+let musicBusy = false
 let cacheBusy = false
 let videoDetails: { id: string; info: VideoDetails } | undefined
 let frameTools: { directory: string; tools?: ToolStatus } | undefined
 const mediaCache = new MediaCache(app.getPath('userData'))
 const frames = new FrameStore(mediaCache)
+const music = new MusicWorkspace()
+const musicArtwork = new MusicArtwork()
 const updates = createUpdateChecker(app.getVersion(), (url, options) => net.fetch(url, options))
 
 protocol.registerSchemesAsPrivileged([
   { scheme: 'w3f7-media', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } },
 ])
+
+function applyTitleBarTone() {
+  const theme = previewTitleBarTone ?? preferences.theme
+  if (!appWindow || shownTitleBarTone === theme) return
+  const { symbolColor, height } = titleBars[theme]
+  appWindow.setTitleBarOverlay({ color: transparentTitleBar, symbolColor, height })
+  shownTitleBarTone = theme
+}
 
 function preferencesPath() {
   return join(app.getPath('userData'), 'preferences.json')
@@ -134,6 +150,34 @@ async function checkTools(): Promise<ToolCheck> {
   const [path, effective] = await Promise.all([pathProbe, directory ? probe(directory) : pathProbe])
   if (directory === preferences.toolDirectory) frameTools = { directory, tools: effective.tools }
   return { inPath: Boolean(path.tools), ...effective }
+}
+
+async function requireMediaTools() {
+  const tools = frameTools?.directory === preferences.toolDirectory ? frameTools.tools : (await checkTools()).tools
+  if (!tools) throw new Error('请先配置 FFmpeg 和 FFprobe。')
+  return tools
+}
+
+async function withMusic<T>(action: () => Promise<T>) {
+  if (musicBusy) throw new Error('请等待当前音乐操作完成。')
+  musicBusy = true
+  try { return await action() }
+  finally { musicBusy = false }
+}
+
+async function selectMusic(paths: unknown) {
+  const result = await music.select(paths, requireMediaTools)
+  musicArtwork.selectAudio(result.audio.id)
+  return result
+}
+
+async function musicSavePath(source: string, suffix: string, extension: string, title: string, label: string) {
+  const name = basename(source, extname(source)) + suffix + '.' + extension
+  const result = await dialog.showSaveDialog(appWindow!, {
+    title, defaultPath: join(preferences.outputDirectory || dirname(source), name),
+    filters: [{ name: label, extensions: [extension] }],
+  })
+  return result.canceled || !result.filePath ? null : result.filePath
 }
 
 async function inspectVideo(id: string) {
@@ -250,12 +294,17 @@ function registerHandlers() {
 
   handle('settings:get', () => preferences)
   handle('settings:motion', (enabled: boolean) => savePreference('reduceMotion', enabled === true))
+  handle('settings:preview-title-bar', (tone: unknown) => {
+    if (tone !== null && tone !== 'dark' && tone !== 'light') throw new Error('未知标题栏配色。')
+    previewTitleBarTone = tone
+    applyTitleBarTone()
+  })
   handle('settings:theme', async (theme: unknown) => {
     if (theme !== 'dark' && theme !== 'light') throw new Error('未知外观主题。')
     const saved = await savePreference('theme', theme)
     const titleBar = titleBars[saved.theme]
     appWindow?.setBackgroundColor(titleBar.color)
-    appWindow?.setTitleBarOverlay(titleBar)
+    applyTitleBarTone()
     return saved
   })
   handle('settings:choose', async (key: unknown) => {
@@ -296,8 +345,7 @@ function registerHandlers() {
     if (typeof time !== 'number' || !Number.isFinite(time) || time < 0) throw new Error('无效的视频定位时间。')
     const video = requireAsset('video', videoId)
     const request = ++frameRequest
-    const tools = frameTools?.directory === preferences.toolDirectory ? frameTools.tools : (await checkTools()).tools
-    if (!tools) throw new Error('请先配置 FFmpeg 和 FFprobe。')
+    const tools = await requireMediaTools()
     const details = await inspectVideo(videoId)
     if (request !== frameRequest || frameAction || exporting || cacheBusy) throw new Error('已取消旧的取帧请求。')
     return frames.extract(tools.ffmpeg, video, details, time, presented === true)
@@ -374,6 +422,60 @@ function registerHandlers() {
     }
   })
   handle('cover:reveal', () => { if (lastOutput) shell.showItemInFolder(lastOutput) })
+
+  handle('music:pick', () => withMusic(async () => {
+    const result = await dialog.showOpenDialog(appWindow!, {
+      title: '选择音频', properties: ['openFile'], filters: [{ name: 'FLAC 和 MP3', extensions: ['flac', 'mp3'] }],
+    })
+    return result.canceled ? null : selectMusic(result.filePaths)
+  }))
+  handle('music:pick-lyric', (id: string) => withMusic(async () => {
+    const result = await dialog.showOpenDialog(appWindow!, {
+      title: '导入歌词', defaultPath: dirname(music.sourcePath(id)), properties: ['openFile'],
+      filters: [{ name: 'LRC 歌词', extensions: ['lrc'] }],
+    })
+    return result.canceled ? null : selectMusic(result.filePaths)
+  }))
+  handle('music:drop', (paths: unknown) => withMusic(() => selectMusic(paths)))
+  handle('music:pick-cover', (id: string) => withMusic(async () => {
+    music.checkCoverEdit(id)
+    const result = await dialog.showOpenDialog(appWindow!, {
+      title: '重选封面', defaultPath: dirname(music.sourcePath(id)), properties: ['openFile'],
+      filters: [{ name: '封面图片', extensions: ['jpg', 'jpeg', 'png'] }],
+    })
+    return result.canceled ? null : musicArtwork.pick(id, result.filePaths[0])
+  }))
+  handle('music:cancel-cover-pick', (id: string, candidate: string) => { musicArtwork.cancel(id, candidate) })
+  handle('music:prepare-cover', (id: string, candidate: string, crop: SquareCrop) => withMusic(async () => {
+    music.checkCoverEdit(id)
+    const { name, picture } = musicArtwork.prepare(id, candidate, crop)
+    return music.stageCover(id, name, picture)
+  }))
+  handle('music:discard-cover', (id: string) => withMusic(async () => music.discardCover(id)))
+  handle('music:discard-lyric', (id: string) => withMusic(async () => music.discardLyric(id)))
+  handle('music:save-cover', (id: string, index: number) => withMusic(async () => {
+    const { extension, suffix } = music.cover(id, index)
+    const path = await musicSavePath(music.sourcePath(id), suffix, extension, '另存封面', '封面原图')
+    if (!path) return false
+    await music.saveCover(id, index, path)
+    return true
+  }))
+  handle('music:save-lyric', (id: string, index: number) => withMusic(async () => {
+    music.lyric(id, index)
+    const path = await musicSavePath(music.sourcePath(id), '', 'lrc', '导出内嵌歌词', 'LRC 歌词')
+    if (!path) return false
+    await music.saveLyric(id, index, path)
+    return true
+  }))
+  handle('music:export', (id: string, changes: MusicExport) => withMusic(async () => {
+    const { audio, suffix } = music.requireExport(id, changes)
+    const path = await musicSavePath(audio.path, suffix, audio.info.format, '另存音频副本', '音频副本')
+    return path ? music.export(id, changes, path, await requireMediaTools()) : null
+  }))
+  handle('music:reveal', (id: string) => {
+    const path = music.outputPath(id)
+    if (path) shell.showItemInFolder(path)
+  })
   handle('links:open', (id: keyof typeof links) => {
     if (!Object.hasOwn(links, id)) throw new Error('未知链接。')
     return shell.openExternal(links[id])
@@ -386,21 +488,26 @@ function createWindow() {
     width: 1150, height: 774, minWidth: 750, minHeight: 610, show: false,
     title: 'W3F7のVideo_Toolsbar', backgroundColor: titleBar.color, autoHideMenuBar: true,
     titleBarStyle: 'hidden',
-    titleBarOverlay: titleBar,
+    titleBarOverlay: { ...titleBar, color: transparentTitleBar },
     webPreferences: { preload: join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true },
   })
   appWindow = window
+  shownTitleBarTone = preferences.theme
   appWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
   appWindow.webContents.on('will-navigate', (event) => event.preventDefault())
   appWindow.webContents.session.setPermissionRequestHandler((_contents, _permission, callback) => callback(false))
   const painted = new Promise<void>((resolve) => window.once('ready-to-show', resolve))
   appWindow.on('close', (event) => {
-    if (exporting || frameAction || cacheBusy) {
+    if (exporting || frameAction || cacheBusy || musicBusy) {
       event.preventDefault()
       void dialog.showMessageBox(appWindow!, { message: '当前操作完成后即可关闭窗口。' })
     }
   })
-  appWindow.on('closed', () => { appWindow = null })
+  appWindow.on('closed', () => {
+    appWindow = null
+    previewTitleBarTone = null
+    shownTitleBarTone = undefined
+  })
   const loaded = window.loadFile(join(app.getAppPath(), 'dist', 'index.html'), { query: { theme: preferences.theme } })
   void Promise.all([painted, loaded]).then(() => {
     if (!window.isDestroyed()) window.show()
@@ -417,9 +524,16 @@ if (app.requestSingleInstanceLock()) {
     await mediaCache.initialize(preferences.cacheDirectory)
     protocol.handle('w3f7-media', (request) => {
       const url = new URL(request.url)
+      if (url.hostname === 'music-cover') {
+        const match = /^\/([a-f0-9-]{36})\/(\d+)$/.exec(url.pathname)
+        if (match) return music.preview(match[1], Number(match[2]))
+      }
+      if (url.hostname === 'music-audio') {
+        return music.playback(url.pathname.slice(1), request)
+      }
       if (url.hostname === 'video') {
         const video = selected.get('video')
-        if (video && url.pathname === '/' + video.id) return streamVideo(request, video.path)
+        if (video && url.pathname === '/' + video.id) return streamLocalMedia(request, video.path, 'video/mp4')
       }
       const picture = url.hostname === 'frame' ? frames.get(url.pathname.slice(1)) :
         url.hostname === 'cover' ? selected.get('cover') : undefined
