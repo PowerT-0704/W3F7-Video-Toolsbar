@@ -204,7 +204,7 @@ body, #root { height: 100dvh; overflow: hidden; }
   to { opacity: 0; transform: translateY(4px); filter: blur(3px); }
 }
 .page-layout { display: grid; gap: 22px; max-width: 75rem; margin-inline: auto; padding: 30px 32px 38px; }
-.settings-layout { max-width: 58rem; margin-inline: 0; }
+.settings-layout { max-width: 58rem; }
 .page-header { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
 .page-header h1 { font-size: clamp(1.5rem, 2.5vw, 1.75rem); line-height: 1.25; font-weight: 670; letter-spacing: -.02em; }
 .page-header p { color: var(--muted-foreground); font-size: .875rem; line-height: 1.6; }

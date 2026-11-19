@@ -4,7 +4,7 @@
 
 **面向视频与音频工作流的本地工具箱。**
 
-Windows x64 安装版与便携版 **v1.2.2**
+Windows x64 安装版与便携版 **v1.2.3**
 
 [![正式版](https://img.shields.io/github/v/release/PowerT-0704/W3F7-Video-Toolsbar?label=release&style=flat-square)](https://github.com/PowerT-0704/W3F7-Video-Toolsbar/releases/latest)
 [![Release 附件累计下载](https://img.shields.io/github/downloads/PowerT-0704/W3F7-Video-Toolsbar/total?label=downloads&style=flat-square)](https://github.com/PowerT-0704/W3F7-Video-Toolsbar/releases)
@@ -12,7 +12,7 @@ Windows x64 安装版与便携版 **v1.2.2**
 [![MIT 许可](https://img.shields.io/badge/license-MIT-805abc?style=flat-square)](LICENSE)
 [![FFmpeg](https://img.shields.io/badge/engine-FFmpeg-4e9a76?style=flat-square)](https://ffmpeg.org/download.html#build-windows)
 
-[📦 Windows x64 安装版](https://github.com/PowerT-0704/W3F7-Video-Toolsbar/releases/download/v1.2.2/W3F7-Video-Toolsbar-1.2.2-Setup-x64.exe) · [便携版 ZIP](https://github.com/PowerT-0704/W3F7-Video-Toolsbar/releases/download/v1.2.2/W3F7-Video-Toolsbar-1.2.2-win-x64.zip) · [发布说明与校验值](https://github.com/PowerT-0704/W3F7-Video-Toolsbar/releases/tag/v1.2.2)
+[📦 Windows x64 安装版](https://github.com/PowerT-0704/W3F7-Video-Toolsbar/releases/download/v1.2.3/W3F7-Video-Toolsbar-1.2.3-Setup-x64.exe) · [便携版 ZIP](https://github.com/PowerT-0704/W3F7-Video-Toolsbar/releases/download/v1.2.3/W3F7-Video-Toolsbar-1.2.3-win-x64.zip) · [发布说明与校验值](https://github.com/PowerT-0704/W3F7-Video-Toolsbar/releases/tag/v1.2.3)
 
 [界面预览](#界面预览) · [功能展示](#功能展示) · [快速开始](#快速开始) · [开发路线图](ROADMAP.md) · [历史验收记录](docs/verification.md)
 
@@ -20,13 +20,13 @@ Windows x64 安装版与便携版 **v1.2.2**
 
 ## 界面预览
 
-<p align="center"><img src="docs/readme/home.png" width="900" alt="W3F7のVideo_Toolsbar v1.2.2 深色首页，显示视频封面封装和音乐封面解析入口"></p>
+<p align="center"><img src="docs/readme/home.png" width="900" alt="W3F7のVideo_Toolsbar v1.2.3 深色首页，显示视频封面封装和音乐封面解析入口"></p>
 
 ### 🌗 深浅主题
 
-在「设置 → 外观」拖动开关，月亮与太阳随滑块交替，界面颜色也会跟着变化。松手后，开关吸附到选中的深色或浅色。
+在「设置 → 外观」拖动开关，月亮与太阳随滑块交替，页面即时换色。松手后，滑块吸附到选中的主题。深色切浅色时，流光沿滑块下边和右边移动，切回深色时沿上边和左边回到起点，完成一圈逆时针运动。
 
-<p align="center"><img src="docs/readme/theme-toggle.gif" width="900" alt="在设置中把主题开关从深色拖到浅色，再拖回深色。滑块上的月亮和太阳随界面换色交替出现"></p>
+<p align="center"><img src="docs/readme/theme-toggle.gif" width="900" alt="在设置中把主题开关从深色拖到浅色，再拖回深色。滑块上的月亮和太阳交替出现，边缘流光逆时针绕一圈"></p>
 
 ## 功能展示
 
@@ -74,6 +74,7 @@ Windows x64 安装版与便携版 **v1.2.2**
 ## 设置与更新
 
 - 鼠标移入左侧图标栏可展开导航。用顶部按钮或 `Ctrl+B` 固定展开，点击工作区空白处收回。窄窗可通过顶部按钮打开抽屉。
+- 设置页的标题与卡片在侧栏右侧的工作区居中。
 - 深浅主题会在下次启动时恢复。主题过渡和音乐页流光遵循应用的「减少动效」及 Windows 动画设置。[微软动画设置说明](https://support.microsoft.com/zh-cn/accessibility/windows/make-it-easier-to-focus-on-tasks)
 - 「设置 → 存储与缓存」可查看抽帧和临时封面的占用、迁移缓存位置或清理闲置缓存。
 - 应用会在启动后查询 GitHub 上的最新正式版，也可在「关于 → 检查更新」手动查询。

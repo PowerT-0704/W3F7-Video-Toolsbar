@@ -10,6 +10,7 @@ const travel = 40
 const inactiveGlow = 0.58
 const daylightGlow = 0.8
 const pitch = 1.5
+const edgePerimeter = 100
 let titleBarFrame = 0
 const moon = [
   '....##.......',
@@ -83,6 +84,16 @@ const particles = matchParticles()
 function clamp(value: number, max = 1) { return Math.max(0, Math.min(max, value)) }
 function mix(start: number, end: number, progress: number) { return start + (end - start) * progress }
 
+function restingEdge(theme: Theme) {
+  return theme === 'light' ? 18 : 70
+}
+
+function counterclockwiseEdge(position: number, theme: Theme) {
+  const rest = restingEdge(theme)
+  // Smaller positions move counterclockwise. Equivalent endpoints are one perimeter apart.
+  return rest + Math.floor((position - rest + 0.0001) / edgePerimeter) * edgePerimeter
+}
+
 function Pixel({ particle, index, phase }: {
   particle: Particle; index: number; phase: MotionValue<number>
 }) {
@@ -143,6 +154,8 @@ interface Drag {
   pointer: number
   start: number
   initialSlide: number
+  initialEdge: number
+  oppositeEdge: number
   position: number
   sample: number
   time: number
@@ -187,7 +200,7 @@ export function ThemeMorphToggle({ theme, onThemeChange, active, pending }: Them
   const restGlow = light ? daylightGlow : inactiveGlow
   const slide = useMotionValue(light ? travel : 0)
   const phase = useMotionValue(light ? 1 : 0)
-  const edge = useMotionValue(light ? 18 : 70)
+  const edge = useMotionValue(restingEdge(theme))
   const glow = useMotionValue(restGlow)
   const velocity = useVelocity(slide)
   const scaleX = useTransform(velocity, (value) => 1 + clamp(Math.abs(value) / 330) * 0.045)
@@ -200,6 +213,7 @@ export function ThemeMorphToggle({ theme, onThemeChange, active, pending }: Them
   const nightPhase = useTransform(phase, (progress) => 1 - progress)
   const committed = useRef(theme)
   const target = useRef(theme)
+  const edgeDestination = useRef(restingEdge(theme))
   const preview = useRef(false)
   const canPreview = useRef(false)
   const requestInFlight = useRef(false)
@@ -248,7 +262,8 @@ export function ThemeMorphToggle({ theme, onThemeChange, active, pending }: Them
       target.current = theme
       slide.jump(light ? travel : 0)
       phase.jump(light ? 1 : 0)
-      edge.jump(light ? 18 : 70)
+      edgeDestination.current = restingEdge(theme)
+      edge.jump(edgeDestination.current)
       glow.jump(restGlow)
       setDragging(false)
     }
@@ -260,11 +275,12 @@ export function ThemeMorphToggle({ theme, onThemeChange, active, pending }: Them
     paintThemePreview(phase.get())
   }
 
-  function settle(next: Theme, speed = slide.getVelocity()) {
+  function settle(next: Theme, nextEdge: number, speed = slide.getVelocity()) {
     if (!canPreview.current) return
     stopPlayback()
     startPreview()
     target.current = next
+    edgeDestination.current = nextEdge
     const day = next === 'light'
     const destination = day ? travel : 0
     const speedLimit = Math.min(250, 55 + Math.abs(destination - slide.get()) * 8)
@@ -273,18 +289,20 @@ export function ThemeMorphToggle({ theme, onThemeChange, active, pending }: Them
         type: 'spring', stiffness: 370, damping: 25, mass: 0.82, velocity: Math.max(-speedLimit, Math.min(speedLimit, speed)),
       }),
       animate(phase, day ? 1 : 0, { duration: 0.32, ease: [0.25, 0.65, 0.3, 1], onComplete: finishPreview }),
-      animate(edge, day ? 18 : 70, { duration: 0.46, ease: [0.2, 0.55, 0.25, 1] }),
+      animate(edge, nextEdge, { duration: 0.46, ease: [0.2, 0.55, 0.25, 1] }),
       animate(glow, [glow.get(), 1, day ? daylightGlow : inactiveGlow], { duration: 0.46, times: [0, 0.25, 1], ease: 'easeInOut' }),
     ]
   }
 
   function selectTheme(next: Theme, speed?: number) {
     if (pending || requestInFlight.current || !active) return
-    settle(next, speed)
-    if (next === committed.current) return
+    const changing = next !== committed.current
+    const previousEdge = edgeDestination.current
+    settle(next, changing ? counterclockwiseEdge(edge.get(), next) : previousEdge, speed)
+    if (!changing) return
     requestInFlight.current = true
     void onThemeChange(next).then((saved) => {
-      if (!saved && canPreview.current) settle(committed.current, 0)
+      if (!saved && canPreview.current && target.current === next) settle(committed.current, previousEdge, 0)
     }).finally(() => {
       requestInFlight.current = false
     })
@@ -294,8 +312,11 @@ export function ThemeMorphToggle({ theme, onThemeChange, active, pending }: Them
     if (pending || requestInFlight.current || !active || !event.isPrimary || event.button !== 0 || drag.current) return
     suppressClick.current = false
     const initialSlide = canPreview.current ? slide.get() : committed.current === 'light' ? travel : 0
+    const initialEdge = edge.get()
+    const oppositeTheme = committed.current === 'light' ? 'dark' : 'light'
     drag.current = {
       pointer: event.pointerId, start: event.clientX, initialSlide, position: initialSlide,
+      initialEdge, oppositeEdge: counterclockwiseEdge(Math.min(initialEdge, edgeDestination.current), oppositeTheme),
       sample: initialSlide, time: event.timeStamp, speed: 0, moved: false,
     }
     event.currentTarget.setPointerCapture(event.pointerId)
@@ -322,9 +343,19 @@ export function ThemeMorphToggle({ theme, onThemeChange, active, pending }: Them
 
     if (canPreview.current) {
       const progress = current.position / travel
+      const startedLight = committed.current === 'light'
+      const initialProgress = clamp(current.initialSlide / travel)
+      const towardOther = startedLight ? 1 - progress : progress
+      const initialTowardOther = startedLight ? 1 - initialProgress : initialProgress
+      let sweep = current.initialEdge
+      if (towardOther > initialTowardOther) {
+        sweep = mix(sweep, current.oppositeEdge, (towardOther - initialTowardOther) / (1 - initialTowardOther))
+      } else if (towardOther < initialTowardOther) {
+        sweep = mix(sweep, edgeDestination.current, (initialTowardOther - towardOther) / initialTowardOther)
+      }
       slide.set(next)
       phase.set(progress)
-      edge.set(mix(70, 18, progress))
+      edge.set(sweep)
       glow.set(1)
     }
   }
@@ -338,7 +369,7 @@ export function ThemeMorphToggle({ theme, onThemeChange, active, pending }: Them
     suppressClick.current = true
     setDragging(false)
     if (canceled) {
-      settle(committed.current, 0)
+      settle(committed.current, edgeDestination.current, 0)
       return
     }
     const next = current.position >= travel / 2 ? 'light' : 'dark'
