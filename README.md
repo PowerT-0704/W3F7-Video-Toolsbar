@@ -4,7 +4,7 @@
 
 **面向视频与音频工作流的本地工具箱。**
 
-公开下载 **v1.2.3** · 当前源码 **v1.3.1**
+公开下载 **v1.3.1** · 当前源码 **v1.3.1**
 
 [![正式版](https://img.shields.io/github/v/release/PowerT-0704/W3F7-Video-Toolsbar?label=release&style=flat-square)](https://github.com/PowerT-0704/W3F7-Video-Toolsbar/releases/latest)
 [![Release 附件累计下载](https://img.shields.io/github/downloads/PowerT-0704/W3F7-Video-Toolsbar/total?label=downloads&style=flat-square)](https://github.com/PowerT-0704/W3F7-Video-Toolsbar/releases)
@@ -12,7 +12,7 @@
 [![MIT 许可](https://img.shields.io/badge/license-MIT-805abc?style=flat-square)](LICENSE)
 [![FFmpeg](https://img.shields.io/badge/engine-FFmpeg-4e9a76?style=flat-square)](https://ffmpeg.org/download.html#build-windows)
 
-[📦 Windows x64 安装版](https://github.com/PowerT-0704/W3F7-Video-Toolsbar/releases/download/v1.2.3/W3F7-Video-Toolsbar-1.2.3-Setup-x64.exe) · [便携版 ZIP](https://github.com/PowerT-0704/W3F7-Video-Toolsbar/releases/download/v1.2.3/W3F7-Video-Toolsbar-1.2.3-win-x64.zip) · [发布说明与校验值](https://github.com/PowerT-0704/W3F7-Video-Toolsbar/releases/tag/v1.2.3)
+[📦 Windows x64 安装版](https://github.com/PowerT-0704/W3F7-Video-Toolsbar/releases/download/v1.3.1/W3F7-Video-Toolsbar-1.3.1-Setup-x64.exe) · [便携版 ZIP](https://github.com/PowerT-0704/W3F7-Video-Toolsbar/releases/download/v1.3.1/W3F7-Video-Toolsbar-1.3.1-win-x64.zip) · [发布说明与校验值](https://github.com/PowerT-0704/W3F7-Video-Toolsbar/releases/tag/v1.3.1)
 
 [界面预览](#界面预览) · [功能展示](#功能展示) · [快速开始](#快速开始) · [开发路线图](ROADMAP.md) · [历史验收记录](docs/verification.md)
 
