@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { createReadStream } from 'node:fs'
-import { mkdir, mkdtemp, readFile, realpath, readdir, rm, stat, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import { basename, dirname, extname, isAbsolute, join, resolve } from 'node:path'
 import type { ToolStatus } from '../src/bridge'
 import type { CaptionAsset, CaptionCue, CaptionFormat, CaptionInput, CaptionLayout, CaptionMode, CaptionOptions,
@@ -12,6 +12,7 @@ import { allocateOutput, chunkPlan, extractAudio, inspectWhisper, localWhisper, 
   probeMedia, readSubtitle, renderAudioChunk, subtitleExtensions, synthesize } from './caption-media.cjs'
 import type { MediaInfo, RenderOverlay } from './caption-media.cjs'
 import { type CaptionConfiguration, textValue, writeCaptionData } from './caption-settings.cjs'
+import { CaptionCache } from './caption-cache.cjs'
 
 const validModes = ['transcribe', 'subtitles', 'transcribe-subtitles', 'full', 'synthesize'] as const
 const validFormats = ['srt', 'ass', 'vtt', 'txt', 'json'] as const
@@ -115,6 +116,7 @@ interface WorkspaceOptions {
   outputDirectory: () => string
   authorize: (path: string, kind: 'output' | 'font') => void
   notify: (task: CaptionTask) => void
+  notifyRemoved?: (id: string) => void
   render: RenderOverlay
   request?: Requester
 }
@@ -142,19 +144,18 @@ export class TranscriptionWorkspace {
   private active?: Job
   private pump?: Promise<void>
   private previewAbort = new AbortController()
-  private scratch?: string
-  private scratchReady?: Promise<string>
+  private cacheOperation?: Promise<unknown>
   private quotaWrites = Promise.resolve()
   private cacheWrites = Promise.resolve()
   private readonly request: Requester
   private readonly root: string
-  private readonly cacheDirectory: string
+  private readonly storage: CaptionCache
   private readonly device = String(390 + new Date().getFullYear() % 10) + String(Number.parseInt(randomUUID().slice(0, 8), 16)).padStart(13, '0')
 
   constructor(private readonly context: WorkspaceOptions) {
     this.request = context.request ?? fetch
     this.root = join(context.dataDirectory, 'transcription')
-    this.cacheDirectory = join(this.root, 'asr')
+    this.storage = new CaptionCache(context.dataDirectory)
   }
 
   get working() { return Boolean(this.active || this.queue.length) }
@@ -164,30 +165,46 @@ export class TranscriptionWorkspace {
     this.previewAbort.abort()
     await this.pump
     await Promise.allSettled([...this.assets.values()].flatMap((asset) => asset.proxyTask ? [asset.proxyTask] : []))
-    if (this.scratch) await this.removeScratch(this.scratch, this.root, 'session-')
+    await this.cacheOperation?.catch(() => undefined)
+    await this.storage.dispose()
   }
 
-  private async removeScratch(path: string, parent: string, prefix: string) {
-    const target = await realpath(path).catch(() => '')
-    const root = await realpath(parent).catch(() => '')
-    if (target && root && dirname(target) === root && basename(target).startsWith(prefix)) await rm(target, { recursive: true, force: true })
+  private activePreviews() {
+    return new Set([...this.jobs.values()].flatMap((job) => job.media?.proxy ? [job.media.proxy] : []))
   }
 
-  private session() {
-    this.scratchReady ??= (async () => {
-      await mkdir(this.root, { recursive: true })
-      const entries = await readdir(this.root, { withFileTypes: true })
-      const expiry = Date.now() - 24 * 3_600_000
-      for (const entry of entries) {
-        if (!entry.isDirectory() || !/^session-[a-z\d]{6}$/i.test(entry.name)) continue
-        const path = join(this.root, entry.name)
-        const details = await stat(path).catch(() => undefined)
-        if (details && details.mtimeMs < expiry) await this.removeScratch(path, this.root, 'session-').catch(() => undefined)
-      }
-      this.scratch = await mkdtemp(join(this.root, 'session-'))
-      return this.scratch
-    })()
-    return this.scratchReady
+  cacheStatus() {
+    return this.storage.status(this.activePreviews(), this.working || [...this.assets.values()].some((asset) => asset.proxyTask))
+  }
+
+  private useCacheWhileIdle<T>(action: () => Promise<T>) {
+    if (this.cacheOperation || this.working || [...this.assets.values()].some((asset) => asset.proxyTask)) {
+      throw new Error('请等待转录、合成或预览完成后再管理缓存。')
+    }
+    const operation = action().finally(() => { this.cacheOperation = undefined })
+    this.cacheOperation = operation
+    return operation
+  }
+
+  changeCache(parent: string) {
+    return this.useCacheWhileIdle(async () => {
+      await this.storage.change(parent)
+      return this.cacheStatus()
+    })
+  }
+
+  clearCache() {
+    return this.useCacheWhileIdle(async () => {
+      await this.cacheWrites
+      const previews = this.activePreviews()
+      for (const asset of this.assets.values()) if (asset.proxy && !previews.has(asset.proxy)) asset.proxy = undefined
+      for (const job of this.jobs.values()) job.cache.clear()
+      return this.storage.clear(previews)
+    })
+  }
+
+  private requireCacheIdle() {
+    if (this.cacheOperation) throw new Error('请等待转录缓存操作完成。')
   }
 
   async importPaths(paths: unknown) {
@@ -237,12 +254,14 @@ export class TranscriptionWorkspace {
   }
 
   async preview(id: string) {
+    this.requireCacheIdle()
     const media = this.asset(id, 'media')
     if (media.proxy) return 'w3f7-media://caption-preview/' + id
     media.proxyTask ??= (async () => {
-      const output = join(await this.session(), id + '.mp4')
+      const output = join(await this.storage.session(), id + '.mp4')
       const signal = AbortSignal.any([this.previewAbort.signal, AbortSignal.timeout(300_000)])
-      await makePreview(await this.context.tools(), media.path, media.info!, output, signal)
+      try { await makePreview(await this.context.tools(), media.path, media.info!, output, signal) }
+      catch (error) { await rm(output, { force: true }).catch(() => undefined); throw error }
       media.proxy = output
       return 'w3f7-media://caption-preview/' + id
     })()
@@ -271,6 +290,7 @@ export class TranscriptionWorkspace {
   }
 
   async create(rawInputs: unknown, rawOptions: unknown) {
+    this.requireCacheIdle()
     const options = validateOptions(rawOptions)
     if (options.output) this.context.authorize(options.output, 'output')
     if (options.style.fontFile) this.context.authorize(options.style.fontFile, 'font')
@@ -306,6 +326,8 @@ export class TranscriptionWorkspace {
       if (!program.executable || !program.model) throw new Error('请先在「模型与 API」选择已下载的 Whisper 程序和模型。')
     }
     const tools = inputs.some(({ recognize, mode, media }) => recognize || usesSynthesis(mode, media)) ? await this.context.tools() : undefined
+    this.requireCacheIdle()
+    if (this.jobs.size + inputs.length > 500) throw new Error('本次会话的任务达到上限。请移除已处理的任务后继续。')
     const prepared = inputs.map(({ mode, media, subtitle, track }) => {
       const source = subtitle && !usesRecognition(mode) ? subtitle : media ?? subtitle!
       const task: CaptionTask = {
@@ -330,6 +352,7 @@ export class TranscriptionWorkspace {
     job.action = action
     job.task.state = 'queued'
     job.task.message = '等待处理'
+    job.task.stage = undefined
     job.task.progress = null
     this.queue.push(job)
     this.publish(job)
@@ -483,10 +506,10 @@ export class TranscriptionWorkspace {
     await transaction
   }
 
-  private async readCache(job: Job, key: string, length: number) {
+  private async readCache(job: Job, directory: string, key: string, length: number) {
     const running = job.cache.get(key)
     if (running) return running
-    const path = join(this.cacheDirectory, key + '.json')
+    const path = join(directory, key + '.json')
     try {
       const info = await stat(path)
       if (Date.now() - info.mtimeMs >= 2 * 86_400_000 || info.size > 16 * 1024 ** 2) return undefined
@@ -497,16 +520,16 @@ export class TranscriptionWorkspace {
     } catch { return undefined }
   }
 
-  private async writeCache(job: Job, key: string, captions: CaptionCue[]) {
+  private async writeCache(job: Job, directory: string, key: string, captions: CaptionCue[]) {
     job.cache.set(key, captions)
     const store = this.cacheWrites.then(async () => {
-      await writeCaptionData(join(this.cacheDirectory, key + '.json'), captions)
-      const entries = await readdir(this.cacheDirectory)
+      await writeCaptionData(join(directory, key + '.json'), captions)
+      const entries = await readdir(directory)
       if (entries.length <= 400) return
       const candidates = await Promise.all(entries.filter((name) => /^[a-f\d]{64}\.json$/.test(name)).map(async (name) =>
-        ({ name, mtime: (await stat(join(this.cacheDirectory, name))).mtimeMs })))
+        ({ name, mtime: (await stat(join(directory, name))).mtimeMs })))
       candidates.sort((a, b) => a.mtime - b.mtime)
-      await Promise.all(candidates.slice(0, -400).map(({ name }) => rm(join(this.cacheDirectory, name), { force: true })))
+      await Promise.all(candidates.slice(0, -400).map(({ name }) => rm(join(directory, name), { force: true })))
     })
     this.cacheWrites = store.catch(() => undefined)
     await store.catch(() => undefined)
@@ -520,7 +543,8 @@ export class TranscriptionWorkspace {
     const { engine, language } = task.options
     const wantsWords = task.options.split !== 'original'
     const external = engine === 'whisper-cpp' || engine === 'faster-whisper'
-    const session = await this.session()
+    const session = await this.storage.session()
+    const cacheDirectory = await this.storage.recognitionDirectory()
     const scratch = await mkdtemp(join(session, 'job-'))
     try {
       const info = await probeMedia(tools, input.path, signal)
@@ -547,7 +571,7 @@ export class TranscriptionWorkspace {
       const parts = await parallelMap(plan, external ? 1 : 3, signal, async (chunk, index) => {
         const key = createHash('sha256').update(digestKey + ':' + chunk.start + ':' + chunk.end).digest('hex')
         const length = chunk.end - chunk.start
-        let cues = await this.readCache(job, key, length)
+        let cues = await this.readCache(job, cacheDirectory, key, length)
         if (!cues) {
           this.stage(job, 'recognize', furthest, '准备第 ' + (index + 1) + '/' + plan.length + ' 块', false)
           const directory = join(scratch, String(index))
@@ -571,8 +595,8 @@ export class TranscriptionWorkspace {
             }
           }
           cues = cleanCues(cues, length)
-          if (!snippets.has(index)) await this.writeCache(job, key, cues)
-          await this.removeScratch(directory, scratch, String(index))
+          if (!snippets.has(index)) await this.writeCache(job, cacheDirectory, key, cues)
+          await this.storage.removeScratch(directory, scratch, String(index))
         }
         furthest = Math.max(furthest, Math.round(++finished * 100 / plan.length))
         this.stage(job, 'recognize', furthest, '识别完成 ' + finished + '/' + plan.length + ' 块', false)
@@ -585,7 +609,7 @@ export class TranscriptionWorkspace {
       const shifted = cleanCues(combined.cues.map((line) => ({ ...line, start: line.start + audioOffset, end: line.end + audioOffset })),
         info.duration || Number.MAX_SAFE_INTEGER)
       this.replaceCues(job, !wantsWords ? smoothCues(shifted) : shifted)
-    } finally { await this.removeScratch(scratch, session, 'job-') }
+    } finally { await this.storage.removeScratch(scratch, session, 'job-') }
   }
 
   private async saveSubtitles(job: Job, formats: CaptionFormat[], layout: CaptionLayout, signal: AbortSignal,
@@ -613,7 +637,7 @@ export class TranscriptionWorkspace {
     const { task, media } = job
     if (!media?.public.video) throw new Error('请关联视频后再合成。')
     const tools = job.tools ?? await this.context.tools()
-    const session = await this.session()
+    const session = await this.storage.session()
     const scratch = await mkdtemp(join(session, 'job-'))
     try {
       const output = await allocateOutput(job.directory, savedBase(media.path) + '_字幕成片', task.options.container)
@@ -626,7 +650,7 @@ export class TranscriptionWorkspace {
         if (beyond && !task.warnings.includes(warning)) task.warnings.push(warning)
         this.addOutput(job, await output.commit(signal), 'video')
       } finally { await output.cleanup() }
-    } finally { await this.removeScratch(scratch, session, 'job-') }
+    } finally { await this.storage.removeScratch(scratch, session, 'job-') }
   }
 
   private addOutput(job: Job, path: string, kind: CaptionFormat | 'video') {
@@ -648,9 +672,20 @@ export class TranscriptionWorkspace {
   }
 
   retry(id: string) {
+    this.requireCacheIdle()
     const job = this.job(id)
     if (job.task.state !== 'failed' && job.task.state !== 'cancelled') throw new Error('当前任务无需重试。')
     this.enqueue(job, job.action)
+  }
+
+  remove(id: string) {
+    const job = this.job(id)
+    if (!terminals.has(job.task.state) || this.active === job || this.queue.includes(job)) {
+      throw new Error('只能移除已结束的任务。')
+    }
+    this.jobs.delete(id)
+    for (const output of job.task.outputs) this.paths.delete(output.id)
+    this.context.notifyRemoved?.(id)
   }
 
   edit(id: string, revision: number, raw: unknown) {
@@ -680,6 +715,7 @@ export class TranscriptionWorkspace {
   }
 
   finish(id: string, raw: unknown) {
+    this.requireCacheIdle()
     const job = this.job(id)
     if ((!terminals.has(job.task.state) && job.task.state !== 'review') || !job.media?.public.video || !job.task.cues.length) {
       throw new Error('需要先校对视频字幕才可合成。')
@@ -695,6 +731,7 @@ export class TranscriptionWorkspace {
   }
 
   export(id: string, formats: unknown, layout: unknown) {
+    this.requireCacheIdle()
     const job = this.job(id)
     if (busy.has(job.task.state)) throw new Error('请等待当前字幕任务结束。')
     job.inheritedState = job.task.state
@@ -702,6 +739,7 @@ export class TranscriptionWorkspace {
   }
 
   translate(id: string, ids: unknown) {
+    this.requireCacheIdle()
     const job = this.job(id)
     if (busy.has(job.task.state) || job.task.options.translator === 'none') throw new Error('当前任务没有可用的翻译设置。')
     if (!Array.isArray(ids) || !ids.length || ids.length > job.task.cues.length) throw new Error('请选择需要重译的字幕行。')

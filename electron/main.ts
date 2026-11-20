@@ -77,6 +77,7 @@ const captions = new TranscriptionWorkspace({
     if (!chosenCaptionPaths.get(kind)?.has(path)) throw new Error('请通过文件选择器选择输出目录或字体。')
   },
   notify: (task) => { if (appWindow && !appWindow.isDestroyed()) appWindow.webContents.send('caption:task', task) },
+  notifyRemoved: (id) => { if (appWindow && !appWindow.isDestroyed()) appWindow.webContents.send('caption:task-removed', id) },
   render: renderCaptionOverlay,
 })
 
@@ -332,6 +333,7 @@ function registerHandlers() {
   handle('caption:create', (inputs, options) => captions.create(inputs, options))
   handle('caption:cancel', (id?: string) => captions.cancel(id))
   handle('caption:retry', (id: string) => captions.retry(id))
+  handle('caption:remove', (id: string) => captions.remove(id))
   handle('caption:edit', (...args: Parameters<typeof captions.edit>) => captions.edit(...args))
   handle('caption:translate', (...args: Parameters<typeof captions.translate>) => captions.translate(...args))
   handle('caption:finish', (...args: Parameters<typeof captions.finish>) => captions.finish(...args))
@@ -345,6 +347,20 @@ function registerHandlers() {
   handle('caption:save', (value: Parameters<typeof captionConfiguration.save>[0]) => captionConfiguration.save(value))
   handle('caption:test-model', () => captions.testModel())
   handle('caption:check-program', (engine: Parameters<typeof captions.checkProgram>[0]) => captions.checkProgram(engine))
+  handle('caption:cache-status', () => captions.cacheStatus())
+  handle('caption:cache-choose', async () => {
+    if (!appWindow) return null
+    const result = await dialog.showOpenDialog(appWindow, {
+      title: '选择转录缓存位置', properties: ['openDirectory', 'createDirectory'],
+    })
+    return result.canceled || !result.filePaths[0] ? null : captions.changeCache(result.filePaths[0])
+  })
+  handle('caption:cache-reset', () => captions.changeCache(''))
+  handle('caption:cache-open', async () => {
+    const result = await shell.openPath((await captions.cacheStatus()).directory)
+    if (result) throw new Error(result)
+  })
+  handle('caption:cache-clear', () => captions.clearCache())
 
   handle('assets:pick', async (kind: AssetKind) => {
     if (kind !== 'video' && kind !== 'cover') throw new Error('未知素材类型。')

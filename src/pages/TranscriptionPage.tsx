@@ -1,14 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { DragEvent } from 'react'
-import { AudioLines, Check, ChevronRight, FileText, Film, FolderOpen, Play, Square, Upload, X } from 'lucide-react'
+import { AudioLines, Check, Clapperboard, FileText, Film, FolderOpen, Play, Upload, X } from 'lucide-react'
+import { AnimatePresence, motion } from 'motion/react'
+import { Tabs } from 'radix-ui'
 import type { CaptionAsset, CaptionCue, CaptionFormat, CaptionInput, CaptionLayout, CaptionMode, CaptionOptions, CaptionTask,
   SubtitleStyle } from '../transcription'
 import { api, errorText, type EngineStatus } from '../workspace'
 import { ActionButton } from '../ui/action-button'
+import { useMotionEnabled } from '../ui/motion-policy'
 import { Button } from '../ui/shadcn/button'
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/shadcn/card'
 import { CaptionSelect, CaptionToggle, Field, FormatChecks, LayoutSelect, NumberField, PathField, TextField, engineNames,
   parseTime, targetLanguages, timeLabel } from './CaptionControls'
+import { CaptionQueue, captionStateNames as stateNames, captionWorking as waiting } from './CaptionQueue'
 import './caption.css'
 
 const initialOptions: CaptionOptions = {
@@ -28,12 +32,29 @@ const translators: [CaptionOptions['translator'], string][] = [
   ['none', '不翻译'], ['llm', 'LLM'], ['bing', '微软翻译 · 免 Key'], ['google', '谷歌翻译 · 免 Key'], ['deeplx', 'DeepLX'],
 ]
 
-const stateNames: Record<CaptionTask['state'], string> = {
-  queued: '排队中', running: '处理中', review: '待校对', done: '已完成', warning: '待复核', failed: '失败', cancelled: '已取消',
-}
-
-const waiting = (task?: CaptionTask) => task?.state === 'queued' || task?.state === 'running'
 const workflowNeedsMedia = (mode: CaptionMode) => mode !== 'subtitles'
+const workViews = [['jobs', '任务设置'], ['polish', '字幕优化与翻译'], ['synthesis', '字幕视频合成']] as const
+type WorkView = typeof workViews[number][0]
+type Batch = { ids: string[]; recognized: boolean }
+
+function chime(audio: AudioContext | undefined) {
+  if (!audio || audio.state !== 'running') return
+  const now = audio.currentTime
+  for (const [frequency, delay, volume] of [[880, 0, .095], [1318.5, .055, .045]]) {
+    const tone = audio.createOscillator()
+    const envelope = audio.createGain()
+    const start = now + delay
+    tone.type = 'sine'
+    tone.frequency.value = frequency
+    envelope.gain.setValueAtTime(.0001, start)
+    envelope.gain.exponentialRampToValueAtTime(volume, start + .014)
+    envelope.gain.exponentialRampToValueAtTime(.0001, start + .35)
+    tone.connect(envelope).connect(audio.destination)
+    tone.onended = () => { tone.disconnect(); envelope.disconnect() }
+    tone.start(start)
+    tone.stop(start + .36)
+  }
+}
 
 function localText(line: CaptionCue, layout: CaptionLayout) {
   if (!line.translation || layout === 'source') return line.text
@@ -70,6 +91,9 @@ function Editor({ task, visible, onChange, onAction, onDirty }: { task: CaptionT
   const [url, setUrl] = useState(task.media?.preview)
   const [fallback, setFallback] = useState(false)
   const [previewError, setPreviewError] = useState('')
+  const [isPlaying, setPlaying] = useState(false)
+  const [seeking, setSeeking] = useState(false)
+  const animated = useMotionEnabled() && visible
   const player = useRef<HTMLMediaElement | null>(null)
   const viewport = useRef<HTMLDivElement>(null)
   const active = useRef(true)
@@ -150,19 +174,39 @@ function Editor({ task, visible, onChange, onAction, onDirty }: { task: CaptionT
     onChange(await captionApi.edit(task.id, task.revision, draft))
   }
 
+  const playback = { src: url, controls: true, preload: 'metadata', onTimeUpdate: trackTime, onError: previewFallback,
+    onPlay: () => setPlaying(true), onPause: () => setPlaying(false), onEnded: () => setPlaying(false),
+    onSeeking: () => { setSeeking(true); trackTime() }, onSeeked: () => { setSeeking(false); trackTime() },
+    ref: (node: HTMLMediaElement | null) => { player.current = node } }
   const media = task.media && url && (task.media.video
-    ? <video aria-label="字幕视频预览" src={url} controls preload="metadata" onTimeUpdate={trackTime} onError={previewFallback}
-      ref={(node) => { player.current = node }} />
-    : <audio aria-label="字幕音频预览" src={url} controls preload="metadata" onTimeUpdate={trackTime} onError={previewFallback}
-      ref={(node) => { player.current = node }} />)
+    ? <video aria-label="字幕视频预览" {...playback} /> : <audio aria-label="字幕音频预览" {...playback} />)
+  const current = previewError || (playing >= 0 ? localText(draft[playing], task.options.layout) : '')
   return <div className="caption-stack">
-    {media && <div className={task.media?.video ? 'caption-preview is-video' : 'caption-preview'}>
-      {media}
-      {playing >= 0 && <button type="button" className="caption-current" onClick={() => {
-        viewport.current?.scrollTo({ top: playing * 72, behavior: 'instant' })
-      }}>{localText(draft[playing], task.options.layout)}</button>}
-      {previewError && <p role="status" className="caption-muted">{previewError}</p>}
-    </div>}
+    {media && <motion.div className={task.media?.video ? 'caption-preview is-video' : 'caption-preview'} data-animated={animated}
+      data-playing={isPlaying} initial={false} animate={{ borderColor: isPlaying ? 'var(--primary)' : 'var(--border)' }}
+      transition={{ duration: animated ? .24 : 0 }}>
+      <div className="caption-player-bar">
+        <span className="caption-player-state"><motion.i aria-hidden="true" initial={false}
+          animate={{ scale: animated && isPlaying ? [1, 1.6, 1] : 1, opacity: isPlaying ? 1 : .5 }}
+          transition={animated && isPlaying ? { duration: 1.5, repeat: Infinity } : { duration: 0 }} />
+          {seeking ? '正在定位' : isPlaying ? '正在播放' : '预览已暂停'}</span>
+        <span className="tabular-nums">{timeLabel(currentMs)}</span>
+      </div>
+      <div className="caption-player-media">
+        {media}
+        {animated && <motion.div className="caption-player-seek" aria-hidden="true" initial={false}
+          animate={{ opacity: seeking ? .9 : 0, scaleX: seeking ? 1 : .2 }} transition={{ duration: .2 }} />}
+      </div>
+      <div className="caption-current-line">
+        <AnimatePresence initial={false} mode="popLayout">
+          {current && <motion.button key={playing + ':' + Boolean(previewError)} type="button" className="caption-current"
+            initial={animated ? { opacity: 0, y: 4 } : false} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+            transition={{ duration: animated ? .17 : 0 }} disabled={playing < 0 || Boolean(previewError)} onClick={() => {
+              viewport.current?.scrollTo({ top: playing * 72, behavior: 'instant' })
+            }}>{current}</motion.button>}
+        </AnimatePresence>
+      </div>
+    </motion.div>}
     <div className="caption-actions caption-editor-actions">
       <span className="caption-muted">{draft.length} 行 · {timeName}{task.options.translator !== 'none' ? ' · ' + missing + ' 行缺译文' : ''}</span>
       <Button size="sm" variant="outline" disabled={isBusy || selected.size < 2} onClick={merge}>合并</Button>
@@ -174,7 +218,7 @@ function Editor({ task, visible, onChange, onAction, onDirty }: { task: CaptionT
       <Button size="sm" disabled={isBusy || !changed} onClick={() => onAction(save)}><Check />保存校对</Button>
     </div>
     {timeError && <p role="alert" className="text-destructive text-sm">{timeError}</p>}
-    <div className="caption-table" role="table" aria-label="字幕校对">
+    <div className="caption-table" role="table" aria-label="字幕校对" data-animated={animated}>
       <div className="caption-row caption-table-heading" role="row">
         <span role="columnheader">行</span><span role="columnheader">时间</span><span role="columnheader">原文</span><span role="columnheader">译文</span>
       </div>
@@ -212,33 +256,53 @@ function Editor({ task, visible, onChange, onAction, onDirty }: { task: CaptionT
   </div>
 }
 
-function TaskOutputs({ task, onAction, dirty }: { task: CaptionTask; onAction: (action: () => Promise<void>) => void; dirty: boolean }) {
+type TaskActionProps = { task: CaptionTask; onAction: (action: () => Promise<void>) => void; dirty: boolean }
+
+function OutputFiles({ task, video, onAction }: Pick<TaskActionProps, 'task' | 'onAction'> & { video: boolean }) {
+  const outputs = task.outputs.filter((output) => (output.kind === 'video') === video)
+  return outputs.length > 0 && <div className="caption-output-list" aria-label="生成的文件">
+    {outputs.map((output) => <Button key={output.id} type="button" variant="outline"
+      title={output.name} onClick={() => onAction(() => api.transcription.reveal(output.id))}>
+      <FolderOpen /><span className="truncate">{output.name}</span>
+    </Button>)}
+  </div>
+}
+
+function SubtitleExports({ task, onAction, dirty }: TaskActionProps) {
   const [formats, setFormats] = useState<CaptionFormat[]>(task.options.formats)
-  const [layout, setLayout] = useState(task.options.layout)
-  const [container, setContainer] = useState(task.options.container)
-  const [synthesis, setSynthesis] = useState(task.options.synthesis)
-  const busy = waiting(task)
+  const [layout, setLayout] = useState<CaptionLayout>(task.options.layout)
   return <div className="caption-stack">
-    {!!task.outputs.length && <div className="caption-output-list" aria-label="生成的文件">
-      {task.outputs.map((output) => <Button key={output.id} type="button" variant="outline"
-        title={output.name} onClick={() => onAction(() => api.transcription.reveal(output.id))}>
-        <FolderOpen /><span className="truncate">{output.name}</span>
-      </Button>)}
-    </div>}
+    <OutputFiles task={task} onAction={onAction} video={false} />
     {!!task.cues.length && <div className="caption-action-panel">
       <FormatChecks formats={formats} onChange={setFormats} />
       <LayoutSelect value={layout} onChange={setLayout} />
-      {task.media?.video && <>
-        <CaptionSelect label="成品字幕类型" value={synthesis} onChange={setSynthesis}
-          choices={[['soft', '软字幕轨'], ['ass', 'ASS 描边'], ['rounded', '圆角背景']]} />
-        <CaptionSelect label="成品容器" value={container} onChange={setContainer} choices={[['mp4', 'MP4'], ['mkv', 'MKV']]} />
-      </>}
       <div className="caption-actions">
-        <Button variant="outline" disabled={busy || dirty} onClick={() => onAction(() => api.transcription.export(task.id, formats, layout))}>导出字幕</Button>
-        {task.media?.video && <Button disabled={busy || dirty}
-          onClick={() => onAction(() => api.transcription.finish(task.id, { container, synthesis, layout }))}>合成视频</Button>}
+        <Button variant="outline" disabled={waiting(task) || dirty}
+          onClick={() => onAction(() => api.transcription.export(task.id, formats, layout))}>导出字幕</Button>
       </div>
     </div>}
+  </div>
+}
+
+function TaskSynthesis({ task, onAction, dirty }: TaskActionProps) {
+  const [layout, setLayout] = useState<CaptionLayout>(task.options.layout)
+  const [container, setContainer] = useState(task.options.container)
+  const [synthesis, setSynthesis] = useState(task.options.synthesis)
+  return <div className="caption-stack">
+    <OutputFiles task={task} onAction={onAction} video />
+    {task.media?.video && !!task.cues.length ? <div className="caption-action-panel">
+      <CaptionSelect label="成品字幕类型" value={synthesis} onChange={setSynthesis}
+        choices={[['soft', '软字幕轨'], ['ass', 'ASS 描边'], ['rounded', '圆角背景']]} />
+      <CaptionSelect label="成品容器" value={container} onChange={setContainer} choices={[['mp4', 'MP4'], ['mkv', 'MKV']]} />
+      <LayoutSelect value={layout} onChange={setLayout} />
+      <div className="caption-actions">
+        <ActionButton disabled={waiting(task) || dirty} shimmer="ready"
+          onClick={() => onAction(() => api.transcription.finish(task.id, { container, synthesis, layout }))}>
+          <Clapperboard />合成视频
+        </ActionButton>
+      </div>
+    </div> : <p className="caption-muted">请选择带字幕的视频任务。</p>}
+    {dirty && <p className="caption-muted" role="status">请先回到「字幕优化与翻译」保存校对。</p>}
   </div>
 }
 
@@ -278,24 +342,36 @@ export function TranscriptionPage({ active, engine, onConfigure, onSettings }: {
   const [options, setOptions] = useState(initialOptions)
   const [tasks, setTasks] = useState<CaptionTask[]>([])
   const [taskId, setTaskId] = useState('')
+  const [view, setView] = useState<WorkView>('jobs')
+  const [batch, setBatch] = useState<Batch>()
   const [dirty, setDirty] = useState(false)
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [dragging, setDragging] = useState(false)
   const [endpoints, setEndpoints] = useState({ llm: 'api.deepseek.com', whisper: 'api.openai.com', deeplx: '' })
   const depth = useRef(0)
+  const removed = useRef(new Map<string, CaptionTask['state'] | undefined>())
+  const completionSound = useRef<AudioContext>(undefined)
+  const sounded = useRef<Batch>(undefined)
+  const animated = useMotionEnabled() && active
 
   useEffect(() => {
     let open = true
     const unsubscribe = captionApi.onTask((task) => {
-      if (!open) return
+      if (!open || removed.current.has(task.id)) return
       setTasks((items) => items.some((item) => item.id === task.id) ? items.map((item) => item.id === task.id ? task : item) : [...items, task])
     })
+    const unsubscribeRemoved = captionApi.onTaskRemoved((id) => {
+      if (!removed.current.has(id)) removed.current.set(id, undefined)
+      if (open) setTasks((items) => items.filter((item) => item.id !== id))
+    })
     void captionApi.tasks().then((items) => {
-      if (open) setTasks((current) => [...items.filter((item) => !current.some((entry) => entry.id === item.id)), ...current])
+      if (open) setTasks((current) => [...items.filter((item) => !removed.current.has(item.id) && !current.some((entry) => entry.id === item.id)), ...current])
     }).catch((reason) => { if (open) setError(errorText(reason)) })
-    return () => { open = false; unsubscribe() }
+    return () => { open = false; unsubscribe(); unsubscribeRemoved() }
   }, [captionApi])
+
+  useEffect(() => () => { void completionSound.current?.close().catch(() => undefined) }, [])
 
   useEffect(() => {
     if (!active) return
@@ -311,6 +387,18 @@ export function TranscriptionPage({ active, engine, onConfigure, onSettings }: {
   const subtitles = useMemo(() => assets.filter((asset) => asset.kind === 'subtitle'), [assets])
   const task = tasks.find((item) => item.id === taskId) ?? tasks.at(-1)
   const running = tasks.filter(waiting).length
+  const progressTask = tasks.find((item) => item.state === 'running') ?? tasks.find((item) => item.state === 'queued')
+  const batchItems = batch?.ids.map((id) => tasks.find((item) => item.id === id) ?? { state: removed.current.get(id) }) ?? []
+  const ended = batchItems.filter((item) => item.state && item.state !== 'queued' && item.state !== 'running').length
+  const completed = !submitting && !progressTask && batchItems.length > 0 && batchItems.every((item) =>
+    item.state === 'done' || item.state === 'review' || item.state === 'warning' && (!('cues' in item) || item.cues.length > 0 || item.outputs.length > 0))
+
+  useEffect(() => {
+    if (completed && batch?.recognized && sounded.current !== batch) {
+      sounded.current = batch
+      chime(completionSound.current)
+    }
+  }, [batch, completed])
   const modesUsed = [options.mode, ...media.map((item) => modesByAsset[item.id]).filter(Boolean)]
   const recognize = modesUsed.some((mode) => mode !== 'subtitles' && mode !== 'synthesize')
   const process = modesUsed.some((mode) => mode === 'subtitles' || mode === 'transcribe-subtitles' || mode === 'full')
@@ -381,11 +469,34 @@ export function TranscriptionPage({ active, engine, onConfigure, onSettings }: {
   }
 
   function submit() {
+    if (willRecognize) {
+      try {
+        completionSound.current ??= new AudioContext()
+        void completionSound.current.resume().catch(() => undefined)
+      } catch { /* Playback feedback is optional when there is no audio device. */ }
+    }
     setSubmitting(true)
     void action(async () => {
       const added = await captionApi.create(inputs, options)
+      setBatch((previous) => {
+        const continuing = previous && ended < previous.ids.length
+        return { ids: [...(continuing ? previous.ids : []), ...added.map((item) => item.id)],
+          recognized: willRecognize || Boolean(continuing && previous.recognized) }
+      })
       setTaskId(added[0].id)
     }).finally(() => setSubmitting(false))
+  }
+
+  function removeTask(id: string) {
+    void action(async () => {
+      const index = tasks.findIndex((item) => item.id === id)
+      if (index < 0) return
+      await captionApi.remove(id)
+      removed.current.set(id, tasks[index].state)
+      setTasks((items) => items.filter((item) => item.id !== id))
+      setTaskId((selected) => selected === id || !selected && task?.id === id
+        ? tasks[index + 1]?.id ?? tasks[index - 1]?.id ?? '' : selected)
+    })
   }
 
   function replaceTask(next: CaptionTask) {
@@ -393,9 +504,25 @@ export function TranscriptionPage({ active, engine, onConfigure, onSettings }: {
     setTasks((items) => items.map((item) => item.id === next.id ? next : item))
   }
 
-  return <section className="page-layout caption-page" onDrop={drop} onDragOver={(event) => event.preventDefault()}
+  const taskControls = task && <>
+    {waiting(task) && <Button variant="outline" size="sm" onClick={() => void action(() => captionApi.cancel(task.id))}>取消任务</Button>}
+    {(task.state === 'failed' || task.state === 'cancelled') &&
+      <Button variant="outline" size="sm" onClick={() => void action(() => captionApi.retry(task.id))}>重试任务</Button>}
+  </>
+  const taskPicker = tasks.length > 0 && <div className="caption-task-picker">
+    <CaptionSelect label="当前任务" value={task?.id ?? ''} disabled={dirty} onChange={setTaskId}
+      choices={tasks.map((item) => [item.id, `${item.name} · ${stateNames[item.state]}`])} />
+  </div>
+  const taskStatus = task && <>
+    <div className="caption-task-status" aria-live="polite"><span>{stateNames[task.state]} · {task.message}</span>{taskControls}</div>
+    {!!task.warnings.length && <ul className="caption-warnings">{task.warnings.map((warning, index) => <li key={index}>{warning}</li>)}</ul>}
+  </>
+  const runTaskAction = (run: () => Promise<void>) => void action(run)
+
+  return <section className="page-layout caption-page" data-view={view}
+    onDrop={(event) => { if (view === 'jobs') drop(event) }} onDragOver={(event) => event.preventDefault()}
     onDragEnter={(event) => {
-      if (event.dataTransfer.types.includes('Files')) { depth.current++; setDragging(true) }
+      if (view === 'jobs' && event.dataTransfer.types.includes('Files')) { depth.current++; setDragging(true) }
     }} onDragLeave={() => {
       depth.current = Math.max(0, depth.current - 1)
       if (!depth.current) setDragging(false)
@@ -407,7 +534,16 @@ export function TranscriptionPage({ active, engine, onConfigure, onSettings }: {
     {error && <p className="caption-feedback text-destructive" role="alert">{error}</p>}
     {engine.kind === 'missing' && <div className="caption-feedback"><span>{engine.message}</span>
       <Button variant="outline" size="sm" onClick={onSettings}>设置 FFmpeg</Button></div>}
-    <div className="caption-workbench">
+    <Tabs.Root className="caption-tabs" value={view} onValueChange={(next) => setView(next as WorkView)}>
+      <Tabs.List className="caption-tabs-list" aria-label="语音转录工作区">
+        {workViews.map(([id, label]) => <Tabs.Trigger key={id} value={id} className="caption-tab">
+          {animated && view === id && <motion.span layoutId="caption-tab-selection" className="caption-tab-selection" aria-hidden="true"
+            transition={{ type: 'spring', stiffness: 420, damping: 34 }} />}<span>{label}</span>
+        </Tabs.Trigger>)}
+      </Tabs.List>
+      <Tabs.Content value="jobs" forceMount className="caption-pane caption-jobs-pane">
+        <div className="caption-job-scroll" tabIndex={0} aria-label="输入素材和处理设置">
+          <div className="caption-workbench">
       <div className="caption-stack">
         <Card>
           <CardHeader><CardTitle><Film />输入素材</CardTitle></CardHeader>
@@ -446,21 +582,6 @@ export function TranscriptionPage({ active, engine, onConfigure, onSettings }: {
                 </div>}
               </li>)}
             </ul>}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader><CardTitle><Play />任务队列</CardTitle></CardHeader>
-          <CardContent className="caption-stack">
-            {tasks.length ? <ul className="caption-queue">
-              {tasks.map((item) => <li key={item.id}>
-                <button type="button" disabled={dirty && item.id !== task?.id} onClick={() => setTaskId(item.id)} aria-pressed={task?.id === item.id}>
-                  <span><strong>{item.name}</strong><small>{stateNames[item.state]}{item.state === 'running' ? ' · ' + item.message : ''}</small></span>
-                  <ChevronRight size={16} />
-                </button>
-              </li>)}
-            </ul> : <p className="caption-muted">暂无任务。</p>}
-            {running > 0 && <Button size="sm" className="justify-self-start" variant="outline" onClick={() => void action(() => captionApi.cancel())}>
-              <Square />取消全部</Button>}
           </CardContent>
         </Card>
       </div>
@@ -518,26 +639,44 @@ export function TranscriptionPage({ active, engine, onConfigure, onSettings }: {
           {!!recipients.size && <ul className="caption-network" aria-label="本次任务的联网内容">
             {[...recipients].map((text) => <li key={text}>{text}</li>)}
           </ul>}
-          <ActionButton disabled={dirty || submitting || !inputs.length || engine.kind === 'missing' && workflowNeedsMedia(options.mode)}
-            onClick={submit} shimmer="ready"><Play />{inputs.length > 1 ? '添加 ' + inputs.length + ' 项任务' : '开始处理'}</ActionButton>
         </CardContent>
       </Card>
-    </div>
-    {task && <Card className="caption-task" key={task.id}>
-      <CardHeader><CardTitle><FileText />{task.name}</CardTitle></CardHeader>
-      <CardContent className="caption-stack">
-        <div className="caption-task-status" aria-live="polite">
-          <span>{stateNames[task.state]} · {task.message}</span>
-          {waiting(task) && <Button variant="outline" size="sm" onClick={() => void action(() => captionApi.cancel(task.id))}>取消任务</Button>}
-          {(task.state === 'failed' || task.state === 'cancelled') &&
-            <Button variant="outline" size="sm" onClick={() => void action(() => captionApi.retry(task.id))}>重试任务</Button>}
+          </div>
         </div>
-        {task.state === 'running' && <progress max={100} value={task.progress ?? undefined} aria-label="当前阶段进度" />}
-        {!!task.warnings.length && <ul className="caption-warnings">{task.warnings.map((warning, index) => <li key={index}>{warning}</li>)}</ul>}
-        {!!task.cues.length && <Editor key={task.revision} task={task} visible={active} onDirty={setDirty}
-          onChange={replaceTask} onAction={(run) => void action(run)} />}
-        <TaskOutputs task={task} dirty={dirty} onAction={(run) => void action(run)} />
-      </CardContent>
-    </Card>}
+        <CaptionQueue tasks={tasks} selected={task} dirty={dirty} busy={running > 0} active={active && view === 'jobs'}
+          progress={progressTask} total={batchItems.length || running} ended={ended} completed={completed} submitting={submitting}
+          onSelect={setTaskId} onRemove={removeTask} onReview={() => setView('polish')} onSynthesis={() => setView('synthesis')}
+          start={<ActionButton size="sm" disabled={dirty || submitting || !inputs.length || engine.kind === 'missing' && workflowNeedsMedia(options.mode)}
+            onClick={submit} shimmer="ready"><Play />{inputs.length > 1 ? '添加 ' + inputs.length + ' 项任务' : '开始处理'}</ActionButton>}
+          onCancelAll={() => void action(() => captionApi.cancel())}>{taskControls}</CaptionQueue>
+      </Tabs.Content>
+      <Tabs.Content value="polish" forceMount className="caption-pane">
+        <Card className="caption-task">
+          <CardHeader><CardTitle><FileText />字幕优化与翻译</CardTitle></CardHeader>
+          <CardContent className="caption-stack">
+            {taskPicker}
+            {task ? <>
+              {taskStatus}
+              {!!task.cues.length && <Editor key={task.id + ':' + task.revision} task={task} visible={active && view === 'polish'}
+                onDirty={setDirty} onChange={replaceTask} onAction={runTaskAction} />}
+              <SubtitleExports key={task.id} task={task} dirty={dirty} onAction={runTaskAction} />
+            </> : <p className="caption-muted">先在「任务设置」提交转录或字幕任务。</p>}
+          </CardContent>
+        </Card>
+      </Tabs.Content>
+      <Tabs.Content value="synthesis" className="caption-pane">
+        <Card className="caption-task">
+          <CardHeader><CardTitle><Clapperboard />字幕视频合成</CardTitle></CardHeader>
+          <CardContent className="caption-stack">
+            {taskPicker}
+            {task ? <>
+              {taskStatus}
+              <TaskSynthesis key={task.id} task={task} dirty={dirty} onAction={runTaskAction} />
+              {dirty && <Button variant="outline" className="justify-self-start" onClick={() => setView('polish')}>返回校对</Button>}
+            </> : <p className="caption-muted">先在「任务设置」提交带字幕的视频任务。</p>}
+          </CardContent>
+        </Card>
+      </Tabs.Content>
+    </Tabs.Root>
   </section>
 }

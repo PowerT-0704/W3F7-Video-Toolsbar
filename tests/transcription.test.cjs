@@ -1,7 +1,7 @@
 const { test } = require('node:test')
 const assert = require('node:assert/strict')
 const { execFileSync } = require('node:child_process')
-const { mkdtemp, mkdir, readFile, readdir, realpath, rm, writeFile } = require('node:fs/promises')
+const { mkdtemp, mkdir, readFile, readdir, realpath, rm, symlink, writeFile } = require('node:fs/promises')
 const { tmpdir } = require('node:os')
 const { dirname, join } = require('node:path')
 const { setTimeout: wait } = require('node:timers/promises')
@@ -11,6 +11,7 @@ const services = require('../dist-electron/caption-services.cjs')
 const media = require('../dist-electron/caption-media.cjs')
 const { CaptionConfiguration, defaultCaptionSettings } = require('../dist-electron/caption-settings.cjs')
 const { TranscriptionWorkspace } = require('../dist-electron/transcription.cjs')
+const { CaptionCache } = require('../dist-electron/caption-cache.cjs')
 
 const tools = { ffmpeg: 'ffmpeg', ffprobe: 'ffprobe', version: 'test' }
 const ffmpeg = (...args) => execFileSync('ffmpeg', ['-hide_banner', '-nostdin', '-loglevel', 'error', '-y', ...args], { windowsHide: true })
@@ -339,9 +340,11 @@ test('workspace supports multi-track import, batch, review, edit, VTT and soft a
   makeVideo(source)
   await writeFile(sub, '1\n00:00:00,300 --> 00:00:01,000\n测试\n\n2\n00:00:01,300 --> 00:00:02,000\nHello world\n')
   const request = bijianTransport()
+  const removed = []
   const workspace = new TranscriptionWorkspace({
     dataDirectory: dir, settings: { credentials: async () => credentials() }, tools: async () => tools,
-    request, outputDirectory: () => dir, authorize: () => {}, notify: () => {}, render: async () => assert.fail('unexpected canvas'),
+    request, outputDirectory: () => dir, authorize: () => {}, notify: () => {}, notifyRemoved: (id) => removed.push(id),
+    render: async () => assert.fail('unexpected canvas'),
   })
   t.after(() => workspace.dispose())
   const imported = await workspace.importPaths([source, sub, join(dir, 'missing.mp4')])
@@ -351,9 +354,11 @@ test('workspace supports multi-track import, batch, review, edit, VTT and soft a
   const [job, original] = await workspace.create([
     { media: video.id, track: 2 }, { subtitle: subtitle.id, track: -1, mode: 'subtitles' },
   ], defaults({ review: true, split: 'original', formats: ['srt', 'vtt', 'json'] }))
+  assert.throws(() => workspace.remove(job.id), /只能移除已结束/)
   const review = await settled(workspace, job.id, ['review', 'failed'])
   assert.equal(review.state, 'review', review.message)
   assert.equal(review.cues[0].text, 'This is test speech')
+  assert.throws(() => workspace.remove(review.id), /只能移除已结束/)
   workspace.edit(review.id, review.revision, review.cues.map((line) => ({ ...line, text: '已校对' })))
   await settled(workspace, original.id, ['done'])
   workspace.finish(review.id, { container: 'mp4', synthesis: 'soft', layout: 'source-first' })
@@ -373,6 +378,101 @@ test('workspace supports multi-track import, batch, review, edit, VTT and soft a
     .toString().split('\n').filter((row) => !row.startsWith('#')).find(Boolean)
   assert.notEqual(frame(source, '0.5'), frame(workspace.locate(hard.outputs.at(-1).id), '0.5'))
   assert.ok(!(await readdir(dir)).some((name) => /\.partial\./.test(name)))
+  await workspace.preview(video.id)
+  const preview = workspace.mediaSource(video.id, true).path
+  const custom = join(dir, '新的缓存位置')
+  await mkdir(custom)
+  assert.ok((await workspace.changeCache(custom)).directory.startsWith(custom))
+  assert.ok((await workspace.cacheStatus()).activeBytes > 0)
+  await workspace.clearCache()
+  assert.ok((await readFile(preview)).length > 0)
+  workspace.remove(job.id)
+  assert.deepEqual(removed, [job.id])
+  assert.deepEqual(workspace.tasks().map((item) => item.id), [original.id])
+  assert.ok(hard.outputs.every((item) => workspace.locate(item.id) === undefined))
+  assert.match(await readFile(srt, 'utf8'), /已校对/)
+  await workspace.clearCache()
+  assert.equal(workspace.mediaSource(video.id, true), undefined)
+  await assert.rejects(readFile(preview), { code: 'ENOENT' })
+})
+
+test('caption cache preserves active previews, remembers prior folders and confines cleanup to owned entries', async (t) => {
+  const dir = await folder(t)
+  const profile = join(dir, '测试 profile')
+  const alternate = join(dir, '缓存 位置')
+  const invalid = join(dir, '不可用位置')
+  await mkdir(alternate)
+  await mkdir(invalid)
+  const cache = new CaptionCache(profile)
+  const defaultStatus = await cache.status(new Set(), false)
+  const legacy = join(defaultStatus.directory, 'session-Ab12cD', 'job-Qs2rer')
+  await mkdir(legacy, { recursive: true })
+  await writeFile(join(legacy, 'input.wav'), Buffer.alloc(5))
+  await writeFile(join(defaultStatus.directory, 'settings.json'), 'settings sentinel')
+  await writeFile(join(defaultStatus.directory, 'quota.json'), 'quota sentinel')
+  await writeFile(join(alternate, 'keep.txt'), 'user file')
+  await cache.change(alternate)
+  const internal = await cache.recognitionDirectory()
+  const cachedResult = join(internal, 'a'.repeat(64) + '.json')
+  await writeFile(cachedResult, Buffer.alloc(6))
+  await writeFile(cachedResult + '.12345678-1234-1234-1234-123456789abc.tmp', Buffer.alloc(4))
+  await writeFile(join(internal, 'keep.txt'), 'foreign file')
+  if (process.platform === 'win32') {
+    await symlink(alternate, join(invalid, 'W3F7-Video-Toolsbar-transcription'), 'junction')
+    await assert.rejects(cache.change(invalid), /不能是链接/)
+    assert.ok((await cache.status(new Set(), false)).directory.startsWith(alternate))
+  }
+  await cache.change('')
+  const reopened = new CaptionCache(profile)
+  assert.deepEqual(await reopened.clear(new Set()), { released: 15, incomplete: false })
+  await assert.rejects(readFile(join(legacy, 'input.wav')), { code: 'ENOENT' })
+  await assert.rejects(readFile(cachedResult), { code: 'ENOENT' })
+  assert.equal(await readFile(join(internal, 'keep.txt'), 'utf8'), 'foreign file')
+  assert.equal(await readFile(join(alternate, 'keep.txt'), 'utf8'), 'user file')
+  assert.equal(await readFile(join(defaultStatus.directory, 'settings.json'), 'utf8'), 'settings sentinel')
+  assert.equal(await readFile(join(defaultStatus.directory, 'quota.json'), 'utf8'), 'quota sentinel')
+})
+
+test('recognition scratch is cleaned after rejected upload, cancellation and retry in the selected cache', async (t) => {
+  const dir = await folder(t)
+  const source = join(dir, 'sample.wav')
+  ffmpeg('-f', 'lavfi', '-i', 'sine=frequency=440:duration=2', source)
+  const alternate = join(dir, '选定缓存')
+  await mkdir(alternate)
+  let phase = 'reject'
+  let uploadStarted
+  const started = new Promise((resolve) => { uploadStarted = resolve })
+  const fixture = bijianTransport()
+  const workspace = new TranscriptionWorkspace({
+    dataDirectory: join(dir, 'profile'), settings: { credentials: async () => credentials() }, tools: async () => tools,
+    outputDirectory: () => dir, authorize: () => {}, notify: () => {}, render: async () => assert.fail('unexpected render'),
+    request: async (address, init) => {
+      if (phase === 'reject') return new Response(null, { status: 412 })
+      if (phase === 'cancel') { uploadStarted(); await wait(5000, undefined, { signal: init.signal }) }
+      return fixture(address, init)
+    },
+  })
+  t.after(() => workspace.dispose())
+  const directory = (await workspace.changeCache(alternate)).directory
+  const { assets: [asset] } = await workspace.importPaths([source])
+  const [job] = await workspace.create([{ media: asset.id, track: 0 }], defaults({ mode: 'transcribe' }))
+  await settled(workspace, job.id, ['failed'])
+  const session = join(directory, (await readdir(directory)).find((name) => name.startsWith('session-')))
+  assert.deepEqual(await readdir(session), [])
+  phase = 'cancel'
+  workspace.retry(job.id)
+  await started
+  assert.throws(() => workspace.clearCache(), /请等待转录/)
+  assert.ok((await readdir(session)).some((name) => name.startsWith('job-')))
+  await workspace.cancel(job.id)
+  await settled(workspace, job.id, ['cancelled'])
+  assert.deepEqual(await readdir(session), [])
+  phase = 'success'
+  workspace.retry(job.id)
+  const terminal = await settled(workspace, job.id, ['done', 'warning', 'failed'])
+  assert.equal(terminal.state, 'done', terminal.message)
+  assert.deepEqual(await readdir(session), [])
+  assert.ok((await readdir(join(directory, 'asr'))).some((name) => name.endsWith('.json')))
 })
 
 test('rounded compositing honors overlay timestamps and clears the finished caption', async (t) => {

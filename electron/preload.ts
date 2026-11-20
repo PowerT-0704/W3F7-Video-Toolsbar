@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
+import type { IpcRendererEvent } from 'electron'
 import type { DesktopAPI } from '../src/bridge'
 
 const api: DesktopAPI = {
@@ -11,6 +12,7 @@ const api: DesktopAPI = {
     create: (inputs, options) => ipcRenderer.invoke('caption:create', inputs, options),
     cancel: (id) => ipcRenderer.invoke('caption:cancel', id),
     retry: (id) => ipcRenderer.invoke('caption:retry', id),
+    remove: (id) => ipcRenderer.invoke('caption:remove', id),
     edit: (id, revision, cues) => ipcRenderer.invoke('caption:edit', id, revision, cues),
     translate: (id, rows) => ipcRenderer.invoke('caption:translate', id, rows),
     finish: (id, output) => ipcRenderer.invoke('caption:finish', id, output),
@@ -20,10 +22,20 @@ const api: DesktopAPI = {
     save: (settings) => ipcRenderer.invoke('caption:save', settings),
     testModel: () => ipcRenderer.invoke('caption:test-model'),
     checkProgram: (engine) => ipcRenderer.invoke('caption:check-program', engine),
+    cacheStatus: () => ipcRenderer.invoke('caption:cache-status'),
+    chooseCache: () => ipcRenderer.invoke('caption:cache-choose'),
+    resetCache: () => ipcRenderer.invoke('caption:cache-reset'),
+    openCache: () => ipcRenderer.invoke('caption:cache-open'),
+    clearCache: () => ipcRenderer.invoke('caption:cache-clear'),
     onTask: (callback) => {
       const listener = (_event: Electron.IpcRendererEvent, task: Parameters<typeof callback>[0]) => callback(task)
       ipcRenderer.on('caption:task', listener)
       return () => ipcRenderer.removeListener('caption:task', listener)
+    },
+    onTaskRemoved: (callback) => {
+      const listener = (_: IpcRendererEvent, id: string) => callback(id)
+      ipcRenderer.on('caption:task-removed', listener)
+      return () => ipcRenderer.removeListener('caption:task-removed', listener)
     },
   },
   pick: (kind) => ipcRenderer.invoke('assets:pick', kind),

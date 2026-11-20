@@ -8,6 +8,7 @@ import { Separator } from '../ui/shadcn/separator'
 import { Switch } from '../ui/shadcn/switch'
 import { ThemeMorphToggle } from '../ui/theme-morph-toggle'
 import { StorageSettings } from './StorageSettings'
+import { CaptionStorageSettings } from './CaptionStorageSettings'
 
 type DirectorySetting = 'toolDirectory' | 'outputDirectory'
 
@@ -104,6 +105,7 @@ export function SettingsPage({ active, preferences, engine, error, systemReduced
       </Card>
 
       <StorageSettings directory={preferences.cacheDirectory} onPreferences={onPreferences} />
+      <CaptionStorageSettings />
 
       <Card className="gap-0">
         <CardContent className="setting-row">

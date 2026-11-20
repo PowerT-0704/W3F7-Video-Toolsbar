@@ -121,6 +121,14 @@ export interface CaptionSettingsChange extends CaptionSettings {
 
 export type CaptionPicker = 'output' | 'program' | 'model' | 'model-directory' | 'font'
 
+export interface CaptionCacheStatus {
+  directory: string
+  custom: boolean
+  bytes: number
+  activeBytes: number
+  warning?: string
+}
+
 export interface TranscriptionAPI {
   pick: (type: 'media' | 'subtitle') => Promise<{ assets: CaptionAsset[]; errors: string[] }>
   drop: (files: File[]) => Promise<{ assets: CaptionAsset[]; errors: string[] }>
@@ -130,6 +138,7 @@ export interface TranscriptionAPI {
   create: (inputs: CaptionInput[], options: CaptionOptions) => Promise<CaptionTask[]>
   cancel: (id?: string) => Promise<void>
   retry: (id: string) => Promise<void>
+  remove: (id: string) => Promise<void>
   edit: (id: string, revision: number, cues: CaptionCue[]) => Promise<CaptionTask>
   translate: (id: string, ids: string[]) => Promise<void>
   finish: (id: string, output: Pick<CaptionOptions, 'container' | 'synthesis' | 'layout'>) => Promise<void>
@@ -140,6 +149,12 @@ export interface TranscriptionAPI {
   testModel: () => Promise<string>
   checkProgram: (engine: ExternalWhisper) => Promise<WhisperCapabilities>
   onTask: (callback: (task: CaptionTask) => void) => () => void
+  onTaskRemoved: (callback: (id: string) => void) => () => void
+  cacheStatus: () => Promise<CaptionCacheStatus>
+  chooseCache: () => Promise<CaptionCacheStatus | null>
+  resetCache: () => Promise<CaptionCacheStatus>
+  openCache: () => Promise<void>
+  clearCache: () => Promise<{ released: number; incomplete: boolean }>
 }
 
 export interface WhisperCapabilities {
