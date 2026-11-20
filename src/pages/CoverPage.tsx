@@ -3,7 +3,7 @@ import type { DragEvent } from 'react'
 import { AlertCircle, ArrowDownToLine, Check, CircleCheck, FileVideo, FolderOpen, ImageIcon, LoaderCircle, Maximize2, MonitorPlay, Upload, X } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { Dialog } from 'radix-ui'
-import type { Asset, AssetKind, Preferences, VideoDetails } from '../bridge'
+import type { Asset, AssetKind, Preferences, VideoCoverMode, VideoDetails } from '../bridge'
 import { api, errorText, type EngineStatus } from '../workspace'
 import { ActionButton } from '../ui/action-button'
 import { BlurFade } from '../ui/blur-fade'
@@ -75,6 +75,7 @@ export function CoverPage({ active, engine, preferences, onChooseOutput, onOpenS
   const [exporting, setExporting] = useState(false)
   const [frameBusy, setFrameBusy] = useState(false)
   const [progress, setProgress] = useState(0)
+  const [coverMode, setCoverMode] = useState<VideoCoverMode>('embedded')
   const [output, setOutput] = useState('')
   const [error, setError] = useState('')
   const selectingRef = useRef(false)
@@ -207,7 +208,7 @@ export function CoverPage({ active, engine, preferences, onChooseOutput, onOpenS
     setOutput('')
     setError('')
     try {
-      const result = await api.exportCover(video.id, cover.id)
+      const result = await api.exportCover(video.id, cover.id, coverMode)
       setProgress(100)
       setOutput(result.path)
     } catch (reason) {
@@ -362,6 +363,18 @@ export function CoverPage({ active, engine, preferences, onChooseOutput, onOpenS
                   title={outputDirectory} aria-label="选择输出文件夹" onClick={() => void changeOutput()}>
                   <FolderOpen /><span className="min-w-0 truncate">{outputDirectory}</span>
                 </Button>
+                <label htmlFor="video-cover-mode" className="text-muted-foreground mt-1 text-xs">封面方式</label>
+                <select id="video-cover-mode" className="border-input bg-background text-foreground w-full min-w-0 rounded-md border px-2 py-1.5 text-sm disabled:opacity-50"
+                  disabled={controlsBusy} value={coverMode} aria-describedby="video-cover-mode-help"
+                  onChange={(event) => setCoverMode(event.currentTarget.value as VideoCoverMode)}>
+                  <option value="embedded">仅内嵌封面（默认）</option>
+                  <option value="first-frame">仅添加至第一帧</option>
+                  <option value="both">内嵌并添加至第一帧</option>
+                </select>
+                <p id="video-cover-mode-help" className="text-muted-foreground text-xs">
+                  {coverMode === 'embedded' ? '写入 MP4 内嵌封面，保留原音视频编码。' :
+                    '仅编码新增的封面帧，播放时会短暂出现。首帧副本不保留摄影机时码。'}
+                </p>
               </CardContent>
               <CardFooter className="flex flex-col items-stretch gap-3">
                 <ActionButton shimmer="ready" disabled={!canExport} onClick={() => void exportCover()}>

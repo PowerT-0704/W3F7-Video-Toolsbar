@@ -25,7 +25,7 @@ const api: DesktopAPI = {
   cancelFrame: (videoId) => ipcRenderer.invoke('frame:cancel', videoId),
   useFrame: (id) => ipcRenderer.invoke('frame:use', id),
   saveFrame: (id) => ipcRenderer.invoke('frame:save', id),
-  exportCover: (video, cover) => ipcRenderer.invoke('cover:export', video, cover),
+  exportCover: (video, cover, mode) => ipcRenderer.invoke('cover:export', video, cover, mode),
   pickMusic: () => ipcRenderer.invoke('music:pick'),
   pickMusicLyric: (audio) => ipcRenderer.invoke('music:pick-lyric', audio),
   dropMusic: (files) => ipcRenderer.invoke('music:drop', files.map((file) => webUtils.getPathForFile(file))),

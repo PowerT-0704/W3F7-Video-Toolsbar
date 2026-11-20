@@ -1,4 +1,5 @@
 export type AssetKind = 'video' | 'cover'
+export type VideoCoverMode = 'embedded' | 'first-frame' | 'both'
 export type Page = 'home' | 'cover' | 'music' | 'changelog' | 'settings' | 'about'
 export type MusicFormat = 'flac' | 'mp3'
 export interface MusicCover {
@@ -110,7 +111,7 @@ export interface DesktopAPI {
   cancelFrame: (videoId: string) => Promise<void>
   useFrame: (id: string) => Promise<Asset>
   saveFrame: (id: string) => Promise<boolean>
-  exportCover: (video: string, cover: string) => Promise<{ path: string }>
+  exportCover: (video: string, cover: string, mode?: VideoCoverMode) => Promise<{ path: string }>
   pickMusic: () => Promise<MusicSelection | null>
   pickMusicLyric: (audio: string) => Promise<MusicSelection | null>
   dropMusic: (files: File[]) => Promise<MusicSelection>

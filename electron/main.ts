@@ -6,7 +6,7 @@ import { stat, readFile, writeFile, rename, copyFile, rm } from 'node:fs/promise
 import { basename, dirname, extname, isAbsolute, join } from 'node:path'
 import { createInterface } from 'node:readline'
 import { pathToFileURL } from 'node:url'
-import type { Asset, AssetKind, MusicExport, Preferences, SquareCrop, Theme, ToolCheck, ToolStatus, VideoDetails } from '../src/bridge'
+import type { Asset, AssetKind, MusicExport, Preferences, SquareCrop, Theme, ToolCheck, ToolStatus, VideoCoverMode, VideoDetails } from '../src/bridge'
 import { FrameStore, streamLocalMedia } from './frames.cjs'
 import { MediaCache } from './media-cache.cjs'
 import { MusicWorkspace } from './music.cjs'
@@ -17,7 +17,7 @@ type DirectorySetting = 'toolDirectory' | 'outputDirectory'
 type CoreRequest =
   | { operation: 'detect' }
   | { operation: 'inspect'; video: string }
-  | { operation: 'export'; video: string; cover: string; outputDirectory: string }
+  | { operation: 'export'; video: string; cover: string; outputDirectory: string; mode: VideoCoverMode }
 
 const defaultPreferences: Preferences = { toolDirectory: '', outputDirectory: '', cacheDirectory: '', reduceMotion: false, theme: 'dark', welcomeSeen: false }
 const titleBars: Record<Theme, { color: string; symbolColor: string; height: number }> = {
@@ -402,15 +402,16 @@ function registerHandlers() {
     return true
   }))
 
-  handle('cover:export', async (videoId: string, coverId: string) => {
+  handle('cover:export', async (videoId: string, coverId: string, mode: unknown = 'embedded') => {
     if (exporting || frameAction || cacheBusy) throw new Error('请等待当前操作完成。')
+    if (mode !== 'embedded' && mode !== 'first-frame' && mode !== 'both') throw new Error('请选择有效的封面方式。')
     const video = requireAsset('video', videoId)
     const cover = requireAsset('cover', coverId)
     exporting = true
     lastOutput = ''
     try {
       const result = await runCore<{ path: string }>({
-        operation: 'export', video: video.path, cover: cover.path,
+        operation: 'export', video: video.path, cover: cover.path, mode,
         outputDirectory: preferences.outputDirectory || dirname(video.path),
       }, (percent) => {
         if (appWindow && !appWindow.isDestroyed()) appWindow.webContents.send('cover:progress', percent)
