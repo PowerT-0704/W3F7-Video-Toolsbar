@@ -26,7 +26,7 @@ export function MusicCropDialog({ image, busy, error, onCancel, onConfirm }: {
         onEscapeKeyDown={(event) => { if (busy) event.preventDefault() }}
         onPointerDownOutside={(event) => { if (busy) event.preventDefault() }}>
         <Dialog.Title className="font-semibold">裁剪正面封面</Dialog.Title>
-        <Dialog.Description className="text-muted-foreground text-sm">拖动选框或使用方向键移动，选择要保留的正方形区域。</Dialog.Description>
+        <Dialog.Description className="text-muted-foreground text-sm">拖动选框或使用方向键移动，选择要保留的正方形区域</Dialog.Description>
         <div ref={surface} className="music-crop-surface"
           style={{ aspectRatio: image.width / image.height, width: 'min(100%, 36rem, ' + (46 * image.width / image.height) + 'dvh)' }}>
           <img src={image.preview} alt={image.name} draggable={false} />

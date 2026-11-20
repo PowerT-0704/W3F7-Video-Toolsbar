@@ -7,7 +7,7 @@ import bilibili from '../assets/bilibili.svg'
 import qq from '../assets/qq.svg'
 import sponsor from '../assets/w3f7-sponsor.png'
 import { aboutCopy } from './about-copy'
-import { api, errorText } from '../workspace'
+import { api, errorText, interfaceCopy } from '../workspace'
 import type { ExternalLinkId, UpdateResult } from '../bridge'
 import { ActionButton } from '../ui/action-button'
 import { BlurFade } from '../ui/blur-fade'
@@ -18,8 +18,8 @@ import { Button } from '../ui/shadcn/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/shadcn/card'
 
 const projects = [
-  { id: 'ezqr', name: '易码 EzQR-Tools', description: '桌面二维码识别与生成工具。', icon: QrCode },
-  { id: 'campuslink', name: 'CampusLink', description: '面向成都理工大学宜宾校区，支持校园网自动连接和掉线重连。', icon: Wifi },
+  { id: 'ezqr', name: '易码 EzQR-Tools', description: '桌面二维码识别与生成工具', icon: QrCode },
+  { id: 'campuslink', name: 'CampusLink', description: '面向成都理工大学宜宾校区，支持校园网自动连接和掉线重连', icon: Wifi },
 ] as const
 
 const community = [
@@ -93,8 +93,8 @@ export function AboutPage({ update, checking, onCheck }: { update?: UpdateResult
                 <ActionButton variant="outline" disabled={checking} onClick={() => void onCheck()}><RefreshCw />{checking ? '正在检查更新' : '检查更新'}</ActionButton>
               </div>
               <div role="status">
-                {!checking && update?.kind === 'current' && '当前版本无需更新。'}
-                {!checking && update?.kind === 'error' && update.message}
+                {!checking && update?.kind === 'current' && '当前版本无需更新'}
+                {!checking && update?.kind === 'error' && interfaceCopy(update.message)}
                 {!checking && update?.kind === 'available' && <div className="flex flex-wrap items-center gap-2">
                   <span>发现正式版 {update.version}</span>
                   <Button size="sm" variant="outline" onClick={() => void api.openUpdate().catch((reason) => setLinkError(errorText(reason)))}>前往下载<ArrowUpRight /></Button>

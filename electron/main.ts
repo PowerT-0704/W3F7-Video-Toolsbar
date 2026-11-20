@@ -345,6 +345,9 @@ function registerHandlers() {
   })
   handle('caption:settings', () => captionConfiguration.settings())
   handle('caption:save', (value: Parameters<typeof captionConfiguration.save>[0]) => captionConfiguration.save(value))
+  handle('caption:presets-list', () => captions.listPresets())
+  handle('caption:presets-save', (...args: Parameters<typeof captions.savePreset>) => captions.savePreset(...args))
+  handle('caption:presets-remove', (id: string) => captions.removePreset(id))
   handle('caption:test-model', () => captions.testModel())
   handle('caption:check-program', (engine: Parameters<typeof captions.checkProgram>[0]) => captions.checkProgram(engine))
   handle('caption:cache-status', () => captions.cacheStatus())
@@ -587,13 +590,13 @@ function createWindow() {
   appWindow.on('close', (event) => {
     if (exporting || frameAction || cacheBusy || musicBusy) {
       event.preventDefault()
-      void dialog.showMessageBox(appWindow!, { message: '当前操作完成后即可关闭窗口。' })
+      void dialog.showMessageBox(appWindow!, { message: '当前操作完成后即可关闭窗口' })
       return
     }
     if (captions.working) {
       event.preventDefault()
       captionClose ??= dialog.showMessageBox(window, {
-        type: 'question', message: '还有字幕任务正在进行。', buttons: ['继续等待', '取消任务并退出'],
+        type: 'question', message: '还有字幕任务正在进行', buttons: ['继续等待', '取消任务并退出'],
         defaultId: 0, cancelId: 0,
       }).then(async ({ response }) => {
         if (response !== 1) return

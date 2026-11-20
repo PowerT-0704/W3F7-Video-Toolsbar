@@ -119,20 +119,24 @@ test('isolated Electron opens the subtitle workflow and saves a Canvas subtitle 
     '-f', 'lavfi', '-i', 'sine=frequency=500:sample_rate=48000', '-i', wav,
     '-map', '0:v', '-map', '1:a', '-map', '2:a', '-metadata:s:a:1', 'language=eng',
     '-c:v', 'libx264', '-c:a', 'aac', '-t', '5', input)
-  let diagnostics = ''
-  const args = ['--remote-debugging-port=0', '--user-data-dir=' + profile, ...(packaged ? [] : [bootstrap])]
-  child = spawn(binary, args, { windowsHide: true, env: { ...env, W3F7_DESKTOP_PROFILE: profile, W3F7_DESKTOP_APP: appPath },
-    stdio: ['ignore', 'pipe', 'pipe'] })
-  child.stderr.setEncoding('utf8').on('data', (message) => { diagnostics += message })
-  child.on('error', (error) => { diagnostics += error.message })
-  const port = await until(() => /DevTools listening on ws:\/\/127\.0\.0\.1:(\d+)/.exec(diagnostics)?.[1], '启动 Electron')
-    .catch((error) => { throw new Error(error.message + '\n' + diagnostics) })
-  const tab = await until(async () => (await (await fetch('http://127.0.0.1:' + port + '/json/list')).json())
-    .find((item) => item.type === 'page' && item.url.includes('index.html')), '发现应用页面')
-  socket = new WebSocket(tab.webSocketDebuggerUrl)
-  await once(socket, 'open')
-  const { call, run } = session(socket)
-  await call('Runtime.enable')
+  async function openDesktop() {
+    let diagnostics = ''
+    const args = ['--remote-debugging-port=0', '--user-data-dir=' + profile, ...(packaged ? [] : [bootstrap])]
+    child = spawn(binary, args, { windowsHide: true, env: { ...env, W3F7_DESKTOP_PROFILE: profile, W3F7_DESKTOP_APP: appPath },
+      stdio: ['ignore', 'pipe', 'pipe'] })
+    child.stderr.setEncoding('utf8').on('data', (message) => { diagnostics += message })
+    child.on('error', (error) => { diagnostics += error.message })
+    const port = await until(() => /DevTools listening on ws:\/\/127\.0\.0\.1:(\d+)/.exec(diagnostics)?.[1], '启动 Electron')
+      .catch((error) => { throw new Error(error.message + '\n' + diagnostics) })
+    const tab = await until(async () => (await (await fetch('http://127.0.0.1:' + port + '/json/list')).json())
+      .find((item) => item.type === 'page' && item.url.includes('index.html')), '发现应用页面')
+    socket = new WebSocket(tab.webSocketDebuggerUrl)
+    await once(socket, 'open')
+    const connected = session(socket)
+    await connected.call('Runtime.enable')
+    return connected
+  }
+  let { call, run } = await openDesktop()
   const screenshot = async (name) => {
     if (!env.W3F7_CAPTION_SCREENSHOTS) return
     const { data } = await call('Page.captureScreenshot', { format: 'png' })
@@ -158,6 +162,46 @@ test('isolated Electron opens the subtitle workflow and saves a Canvas subtitle 
   }, name)
   const page = (name) => run((selector, target) => document.querySelector(selector)?.dataset.page === target, active, name)
   const closeSidebar = () => run((selector) => document.querySelector(selector + ' .page-layout')?.click(), active)
+  const pinned = () => run(() => document.querySelector('button[aria-label="切换侧栏"]')?.getAttribute('aria-pressed') === 'true')
+  const setPinned = async (next) => {
+    if (await pinned() === next) return
+    await run(() => document.querySelector('button[aria-label="切换侧栏"]').click())
+    await until(async () => await pinned() === next, '切换固定侧栏')
+  }
+  const clickDialog = (label) => run((text) => {
+    const button = [...document.querySelectorAll('[role="dialog"] button')].find((item) => item.textContent === text && !item.disabled)
+    if (!button) return false
+    button.click()
+    return true
+  }, label)
+  const presetName = (name) => run((value) => {
+    const input = document.querySelector('[role="dialog"] input')
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, value)
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+  }, name)
+  const aligned = (view) => run((name) => {
+    const track = document.querySelector('.caption-tabs-list')
+    const tab = track?.querySelector('[data-view-tab="' + name + '"]')
+    const slider = track?.querySelector('.caption-tab-selection')
+    if (tab?.getAttribute('aria-selected') !== 'true' || !slider) return false
+    const a = tab.getBoundingClientRect()
+    const b = slider.getBoundingClientRect()
+    return Math.abs(a.left - b.left) < 1.05 && Math.abs(a.top - b.top) < 1.05 && Math.abs(a.width - b.width) < 1.05
+  }, view)
+  const tabPoint = (view) => run((name) => {
+    const rect = document.querySelector('[data-view-tab="' + name + '"]').getBoundingClientRect()
+    return { x: Math.round(rect.left + rect.width / 2), y: Math.round(rect.top + rect.height / 2) }
+  }, view)
+  const pointer = (type, point) => call('Input.dispatchMouseEvent', {
+    type, ...point, button: type === 'mouseMoved' ? 'none' : 'left',
+    buttons: type === 'mouseReleased' ? 0 : 1, clickCount: type === 'mouseMoved' ? 0 : 1,
+  })
+  async function pointerTab(view) {
+    const point = await tabPoint(view)
+    await pointer('mousePressed', point)
+    await pointer('mouseReleased', point)
+    await until(() => aligned(view), '短按滑块对齐 ' + view)
+  }
   const change = (label, value) => run((selector, text, next) => {
     const field = [...document.querySelectorAll(selector + ' label')].find((item) => item.firstElementChild?.textContent === text && item.getClientRects().length)
     const select = field?.querySelector('select')
@@ -167,6 +211,8 @@ test('isolated Electron opens the subtitle workflow and saves a Canvas subtitle 
     return select.value === next
   }, active, label, value)
   await until(() => page('home'), '首页启动')
+  assert.equal(await run(() => [...document.querySelectorAll('.home-description p')].length === 2 &&
+    [...document.querySelectorAll('.home-description p')].every((item) => !item.textContent.trim().endsWith('。'))), true)
   assert.equal(await run(() => window.videoTools.settings().then((settings) => settings.outputDirectory)), directory, 'isolated profile was used')
   const initial = await run(() => window.videoTools.transcription.settings())
   assert.equal(initial.llm.model, 'deepseek-flash')
@@ -182,6 +228,22 @@ test('isolated Electron opens the subtitle workflow and saves a Canvas subtitle 
   await until(() => page('transcription'), '深色转录工作台')
   assert.equal(await run(() => document.documentElement.classList.contains('dark') &&
     document.querySelectorAll('.caption-tabs-list [role="tab"]').length === 3), true)
+  await pointerTab('polish')
+  await pointerTab('synthesis')
+  await pointerTab('jobs')
+  assert.equal(await run(() => document.querySelector('.caption-tabs-list').dataset.animated), 'false')
+  assert.equal(await run(() => getComputedStyle(document.querySelector('.caption-tab-selection')).getPropertyValue('--caption-light-edge').trim()), '#9faeff')
+  const reducedStart = await tabPoint('jobs')
+  const reducedEnd = await tabPoint('polish')
+  await pointer('mousePressed', reducedStart)
+  await until(() => run(() => document.querySelector('.caption-tabs-list').dataset.dragging === 'true'), '减少动效仍可长按拖动')
+  await pointer('mouseMoved', reducedEnd)
+  assert.equal(await run(() => document.querySelector('.caption-tabs-list').dataset.glow), 'false')
+  await pointer('mouseReleased', reducedEnd)
+  await until(() => aligned('polish'), '减少动效松手吸附')
+  await pointerTab('jobs')
+  await setPinned(false)
+  await screenshot('task-settings-dark')
   assert.equal(await nav('设置'), true)
   await until(() => page('settings'), '打开设置')
   await until(() => run(() => {
@@ -197,6 +259,11 @@ test('isolated Electron opens the subtitle workflow and saves a Canvas subtitle 
   assert.equal(await nav('模型与 API'), true)
   await until(() => page('models'), '打开模型设置')
   await until(() => run((selector) => [...document.querySelectorAll(selector + ' input')].some((input) => input.value === 'deepseek-flash'), active), '默认模型可见')
+  await setPinned(true)
+  await run((selector) => document.querySelector(selector + ' input').click(), active)
+  assert.equal(await pinned(), true, '点击输入控件时保持侧栏')
+  await run((selector) => document.querySelector(selector + ' [data-slot="card-content"]').click(), active)
+  await until(async () => !await pinned(), '模型页卡片内边距收起侧栏')
   const model = await run(async (port) => {
     const api = window.videoTools.transcription
     const settings = await api.settings()
@@ -209,14 +276,51 @@ test('isolated Electron opens the subtitle workflow and saves a Canvas subtitle 
   assert.ok(!(await readFile(join(profile, 'transcription', 'settings.json'), 'utf8')).includes('fixture-desktop-key'))
   assert.equal(await nav('语音转录'), true)
   await until(() => page('transcription'), '打开语音转录')
-  await call('Emulation.setDeviceMetricsOverride', { width: 760, height: 650, deviceScaleFactor: 1, mobile: false })
+  await setPinned(true)
+  await run((selector) => document.querySelector(selector + ' .caption-processing-scroll').click(), active)
+  await until(async () => !await pinned(), '转录滚动区空白收起侧栏')
   assert.equal(await run((selector) => {
     const page = document.querySelector(selector)
-    const dock = page.querySelector('.caption-queue-dock')
-    return page.scrollWidth <= page.clientWidth && dock.getBoundingClientRect().bottom <= page.getBoundingClientRect().bottom
+    const rect = (part) => page.querySelector(part).getBoundingClientRect()
+    const input = rect('.caption-input-card')
+    const queue = rect('.caption-queue-card')
+    const output = rect('.caption-processing-card')
+    const start = page.querySelector('.caption-processing-footer button')
+    const scroller = page.querySelector('.caption-processing-scroll')
+    return Math.abs(input.left - queue.left) < 1 && Math.abs(input.right - queue.right) < 1 &&
+      input.bottom < queue.top && queue.right < output.left && Math.abs(queue.bottom - output.bottom) < 2 &&
+      start.getBoundingClientRect().bottom < output.bottom && scroller.scrollHeight > scroller.clientHeight
   }, active), true)
+  await screenshot('task-settings-wide')
+  await call('Emulation.setDeviceMetricsOverride', { width: 750, height: 650, deviceScaleFactor: 1, mobile: false })
+  assert.equal(await run((selector) => {
+    const page = document.querySelector(selector)
+    const rect = (part) => page.querySelector(part).getBoundingClientRect()
+    const input = rect('.caption-input-card')
+    const output = rect('.caption-processing-card')
+    const queue = rect('.caption-queue-card')
+    return page.scrollWidth <= page.clientWidth && Math.abs(input.left - queue.left) < 1 &&
+      input.bottom < output.top && output.bottom < queue.top
+  }, active), true)
+  await until(() => aligned('jobs'), '窄窗滑块对齐')
   await screenshot('task-settings-narrow')
   await call('Emulation.clearDeviceMetricsOverride')
+  assert.equal(await change('字幕断句', 'original'), true)
+  assert.equal(await click('保存为预设'), true)
+  await presetName('视频校对 V1')
+  await until(() => clickDialog('保存预设'), '命名保存预设')
+  const preset = await until(() => run(() => window.videoTools.transcription.listPresets().then((items) => items[0])), '预设写入')
+  assert.equal(preset.options.split, 'original')
+  assert.equal(await change('字幕断句', 'rules'), true)
+  assert.equal(await change('选用预设', preset.id), true)
+  assert.equal(await run(() => [...document.querySelectorAll('.caption-processing-scroll label')].find((label) =>
+    label.firstElementChild.textContent === '字幕断句').querySelector('select').value), 'original')
+  assert.equal(await change('字幕断句', 'rules'), true)
+  assert.equal(await click('保存为预设'), true)
+  await presetName(preset.name)
+  await until(() => clickDialog('保存预设'), '尝试保存同名预设')
+  await until(() => clickDialog('确认覆盖'), '明确确认覆盖')
+  await until(() => run(() => window.videoTools.transcription.listPresets().then((items) => items[0]?.options.split === 'rules')), '预设已覆盖')
   await call('DOM.enable')
   await run(() => {
     const input = document.createElement('input')
@@ -245,6 +349,33 @@ test('isolated Electron opens the subtitle workflow and saves a Canvas subtitle 
   await until(() => page('transcription'), '返回任务设置')
   await closeSidebar()
   await wait(380)
+  await pointerTab('polish')
+  await pointerTab('synthesis')
+  await pointerTab('jobs')
+  const dragStart = await tabPoint('jobs')
+  const dragEnd = await tabPoint('synthesis')
+  await pointer('mousePressed', dragStart)
+  await until(() => run(() => document.querySelector('.caption-tabs-list').dataset.dragging === 'true'), '长按进入拖动')
+  assert.equal(await run(() => document.querySelector('.caption-tabs-list').dataset.glow), 'true')
+  assert.equal(await run(() => getComputedStyle(document.querySelector('.caption-tab-selection')).getPropertyValue('--caption-light-edge').trim()), '#ffc454')
+  await pointer('mouseMoved', { x: dragEnd.x - 16, y: dragEnd.y })
+  assert.equal(await run(() => document.querySelector('.caption-page').dataset.view), 'jobs')
+  await pointer('mouseReleased', dragEnd)
+  await until(() => aligned('synthesis'), '拖到第三段并吸附')
+  await pointer('mousePressed', dragEnd)
+  await until(() => run(() => document.querySelector('.caption-tabs-list').dataset.dragging === 'true'), '长按后向轨道外拖动')
+  await pointer('mouseMoved', { x: dragStart.x, y: dragStart.y + 80 })
+  await pointer('mouseReleased', { x: dragStart.x, y: dragStart.y + 80 })
+  await until(() => aligned('synthesis'), '轨道外放开后回到原段')
+  assert.equal(await run(() => document.querySelector('.caption-tabs-list').dataset.dragging), 'false')
+  await pointerTab('jobs')
+  await call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'ArrowRight', code: 'ArrowRight', windowsVirtualKeyCode: 39 })
+  await call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'ArrowRight', code: 'ArrowRight', windowsVirtualKeyCode: 39 })
+  await until(() => aligned('polish'), '方向键切换')
+  assert.equal(await click('字幕视频合成'), true)
+  assert.equal(await click('字幕优化与翻译'), true)
+  assert.equal(await click('任务设置'), true)
+  await until(() => aligned('jobs'), '连续点击后的滑块对齐')
   await run(() => {
     window.fixtureChimeNotes = 0
     const original = AudioContext.prototype.createOscillator
@@ -255,6 +386,11 @@ test('isolated Electron opens the subtitle workflow and saves a Canvas subtitle 
   })
   assert.equal(await click(live ? '开始处理' : '添加 2 项任务'), true)
   await until(() => run(() => document.querySelector('.caption-progress-shine')?.getClientRects().length > 0), '实际进度与流光')
+  assert.equal(await run(() => {
+    const list = document.querySelector('.caption-queue')
+    const row = list?.querySelector('li')
+    return row && list.clientHeight >= row.offsetHeight
+  }), true, '宽窗有素材时队列仍显示至少一整行')
   await screenshot('task-settings-progress')
   assert.equal(await nav('模型与 API'), true)
   await until(() => run(() => window.videoTools.transcription.tasks().then((tasks) => tasks[0]?.state === 'review' || tasks[0]?.state === 'failed')),
@@ -270,14 +406,14 @@ test('isolated Electron opens the subtitle workflow and saves a Canvas subtitle 
   assert.equal(recognitionRequests, live ? 0 : 2)
   assert.equal(await click('字幕优化与翻译'), true)
   await until(() => run(() => document.querySelector('.caption-preview video')?.getClientRects().length > 0), '校对播放器显示')
-  assert.equal(await run(() => document.querySelector('.caption-queue-dock').getClientRects().length), 0)
+  assert.equal(await run(() => document.querySelector('.caption-queue-card').getClientRects().length), 0)
   await run(async () => { const video = document.querySelector('.caption-preview video'); video.currentTime = .6; await video.play() })
   await until(() => run(() => document.querySelector('.caption-row[data-current=true]') !== null), '播放实时高亮字幕')
   await screenshot('subtitle-review-playing')
   assert.equal(await run((selector) => {
     const field = document.querySelector(selector + ' textarea[aria-label="原文 1"]')
     if (!field) return false
-    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(field, '字幕校对')
+    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(field, '字幕校对。')
     field.dispatchEvent(new Event('input', { bubbles: true }))
     return true
   }, active), true)
@@ -285,9 +421,9 @@ test('isolated Electron opens the subtitle workflow and saves a Canvas subtitle 
   await until(() => run(() => document.querySelector('.caption-preview video')?.paused), '切离校对暂停播放')
   assert.equal(await click('合成视频'), false, 'unsaved draft blocks synthesis')
   assert.equal(await click('返回校对'), true)
-  assert.equal(await run(() => document.querySelector('textarea[aria-label="原文 1"]').value), '字幕校对')
+  assert.equal(await run(() => document.querySelector('textarea[aria-label="原文 1"]').value), '字幕校对。')
   await until(() => click('保存校对'), '保存校对')
-  await until(() => run(() => window.videoTools.transcription.tasks().then((tasks) => tasks[0]?.cues[0]?.text === '字幕校对')), '校对已提交')
+  await until(() => run(() => window.videoTools.transcription.tasks().then((tasks) => tasks[0]?.cues[0]?.text === '字幕校对。')), '校对已提交')
   assert.equal(await click('字幕视频合成'), true)
   await until(() => run(() => document.querySelector('.caption-pane[data-state="active"]')?.textContent.includes('成品字幕类型')), '打开合成设置')
   await screenshot('subtitle-synthesis')
@@ -299,7 +435,7 @@ test('isolated Electron opens the subtitle workflow and saves a Canvas subtitle 
   const items = await readdir(directory)
   const output = join(directory, items.find((item) => item.includes('字幕成片')))
   const srt = join(directory, items.find((item) => item.endsWith('_字幕.srt')))
-  assert.match(await readFile(srt, 'utf8'), /字幕校对/)
+  assert.match(await readFile(srt, 'utf8'), /字幕校对。/)
   const frame = (file) => ffmpeg('-ss', '1', '-i', file, '-map', '0:v:0', '-frames:v', '1', '-f', 'framehash', '-')
     .toString().split('\n').find((row) => /^\d,/.test(row))?.split(',').at(-1)
   assert.ok(frame(output))
@@ -313,10 +449,19 @@ test('isolated Electron opens the subtitle workflow and saves a Canvas subtitle 
     return true
   }), true)
   await until(() => run((id) => window.videoTools.transcription.tasks().then((tasks) => !tasks.some((item) => item.id === id)), review.id), '移除已完成任务')
-  await call('Page.reload')
-  await until(() => page('home'), '刷新 Electron 页面')
+  const exited = once(child, 'exit')
+  await run(() => window.close()).catch(() => {})
+  assert.equal((await exited)[0], 0)
+  ;({ call, run } = await openDesktop())
+  await until(() => page('home'), '重新启动 Electron')
   assert.equal(await run((id) => window.videoTools.transcription.tasks().then((tasks) => tasks.some((item) => item.id === id)), review.id), false)
   assert.match(await readFile(srt, 'utf8'), /字幕校对/)
+  assert.equal(await nav('语音转录'), true)
+  await until(() => page('transcription'), '重新进入转录并读取预设')
+  await until(() => change('选用预设', preset.id), '重启后选择磁盘中的预设')
+  assert.equal(await nav('删除选中预设'), true)
+  await until(() => clickDialog('确认删除'), '确认删除操作预设')
+  await until(() => run(() => window.videoTools.transcription.listPresets().then((items) => !items.length)), '删除持久化')
   assert.equal(await nav('设置'), true)
   await until(() => page('settings'), '重新打开设置')
   await run(() => document.querySelector('#reduce-motion').click())

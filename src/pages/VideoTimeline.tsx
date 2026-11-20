@@ -226,7 +226,7 @@ export function VideoTimeline({ video, details, active, disabled, onUseFrame, on
       const snapshot = await getFrame(seconds, fallback, wasPlaying ? lastPresented.current?.time : undefined)
       if (!snapshot) return
       if (save) {
-        if (await api.saveFrame(snapshot.id)) setMessage('当前帧已导出为 PNG。')
+        if (await api.saveFrame(snapshot.id)) setMessage('当前帧已导出为 PNG')
       } else await onUseFrame(snapshot.id)
     } catch (error) {
       setMessage(errorText(error))
@@ -238,7 +238,7 @@ export function VideoTimeline({ video, details, active, disabled, onUseFrame, on
   }
 
   const position = Math.max(0, Math.min(time, details.duration))
-  const status = decoding ? '正在定位视频帧…' : message || (fallback ? '当前编码无法连续播放，可以拖动时间轴选帧。' : '')
+  const status = decoding ? '正在定位视频帧…' : message || (fallback ? '当前编码无法连续播放，可以拖动时间轴选帧' : '')
   return (
     <Card className="editor-panel min-w-0 gap-4 py-5" aria-label="视频时间轴">
       <CardHeader className="flex flex-wrap items-center justify-between gap-2">

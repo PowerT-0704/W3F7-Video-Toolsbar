@@ -228,7 +228,7 @@ export function CoverPage({ active, engine, preferences, onChooseOutput, onOpenS
     <EmptyHeader>
       <EmptyMedia variant="icon"><Upload /></EmptyMedia>
       <EmptyTitle>{dragging ? '松开鼠标，导入素材' : '拖入 MP4 视频和封面'}</EmptyTitle>
-      <EmptyDescription>支持 MP4 和 PNG、JPG、JPEG，可以一起拖入，也可以分别导入。</EmptyDescription>
+      <EmptyDescription>支持 MP4 和 PNG、JPG、JPEG，可以一起拖入，也可以分别导入</EmptyDescription>
     </EmptyHeader>
   )
   const issue = [error, videoError, coverError].filter(Boolean).join(' ')
@@ -247,7 +247,7 @@ export function CoverPage({ active, engine, preferences, onChooseOutput, onOpenS
       <header className="page-header">
         <div className="grid gap-1.5">
           <h1>视频封面封装</h1>
-          <p>为 MP4 写入自定义封面，保留原始画质和音轨。</p>
+          <p>为 MP4 写入自定义封面，保留原始画质和音轨</p>
         </div>
         <div role="status" aria-live="polite">
           <BlurFade key={engine.kind}><Badge variant="outline">
@@ -321,7 +321,7 @@ export function CoverPage({ active, engine, preferences, onChooseOutput, onOpenS
                           if (currentCoverId.current === cover.id) setCoverReview({ id: cover.id, info: currentTarget.naturalWidth + ' × ' + currentTarget.naturalHeight })
                         }}
                         onError={() => {
-                          if (currentCoverId.current === cover.id) setCoverReview({ id: cover.id, error: '封面无法读取，请换一张 PNG、JPG 或 JPEG。' })
+                          if (currentCoverId.current === cover.id) setCoverReview({ id: cover.id, error: '封面无法读取，请换一张 PNG、JPG 或 JPEG' })
                         }} />}
                     </AnimatePresence>
                     {coverSize && !coverError ? <span className="cover-enlarge"><Maximize2 /></span> :
@@ -372,8 +372,8 @@ export function CoverPage({ active, engine, preferences, onChooseOutput, onOpenS
                   <option value="both">内嵌并添加至第一帧</option>
                 </select>
                 <p id="video-cover-mode-help" className="text-muted-foreground text-xs">
-                  {coverMode === 'embedded' ? '写入 MP4 内嵌封面，保留原音视频编码。' :
-                    '仅编码新增的封面帧，播放时会短暂出现。首帧副本不保留摄影机时码。'}
+                  {coverMode === 'embedded' ? '写入 MP4 内嵌封面，保留原音视频编码' :
+                    '仅编码新增的封面帧，播放时会短暂出现。首帧副本不保留摄影机时码'}
                 </p>
               </CardContent>
               <CardFooter className="flex flex-col items-stretch gap-3">

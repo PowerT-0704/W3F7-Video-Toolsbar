@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/
 import { basename, dirname, extname, isAbsolute, join, resolve } from 'node:path'
 import type { ToolStatus } from '../src/bridge'
 import type { CaptionAsset, CaptionCue, CaptionFormat, CaptionInput, CaptionLayout, CaptionMode, CaptionOptions,
-  CaptionStage, CaptionTask, ExternalWhisper, SubtitleStyle } from '../src/transcription'
+  CaptionPreset, CaptionStage, CaptionTask, ExternalWhisper, SaveCaptionPresetResult, SubtitleStyle } from '../src/transcription'
 import { cleanCues, defaultStyle, joinChunks, parseCaptions, serializeCaptions, smoothCues } from './captions.cjs'
 import { bijian, chat, jianying, object, parallelMap, processText, serviceUrl, splitCaptions, whisperApi } from './caption-services.cjs'
 import type { Requester, ServiceCredentials } from './caption-services.cjs'
@@ -78,6 +78,21 @@ function validateOptions(value: unknown): CaptionOptions {
   }
 }
 
+function presetOptions(value: unknown): CaptionPreset['options'] {
+  const data = object(value)
+  const { output: _output, style: { fontFile: _fontFile, ...safeStyle }, ...options } =
+    validateOptions({ ...data, output: undefined, style: { ...object(data.style), fontFile: undefined } })
+  return { ...options, style: safeStyle }
+}
+
+function presetName(value: unknown) {
+  const name = textValue(value, 64)
+  if (!name || /[\x00-\x1f\x7f]/.test(name)) throw new Error('请输入有效的预设名称')
+  return name
+}
+
+const presetNameKey = (name: string) => name.normalize('NFKC').toLowerCase()
+
 interface AssetRecord {
   public: CaptionAsset
   path: string
@@ -147,6 +162,7 @@ export class TranscriptionWorkspace {
   private cacheOperation?: Promise<unknown>
   private quotaWrites = Promise.resolve()
   private cacheWrites = Promise.resolve()
+  private presetWrites = Promise.resolve()
   private readonly request: Requester
   private readonly root: string
   private readonly storage: CaptionCache
@@ -275,6 +291,55 @@ export class TranscriptionWorkspace {
   }
 
   tasks() { return [...this.jobs.values()].map(({ task }) => task) }
+
+  private async readPresets(): Promise<CaptionPreset[]> {
+    try {
+      const content: unknown = JSON.parse(await readFile(join(this.root, 'presets.json'), 'utf8'))
+      if (!Array.isArray(content)) throw new Error('invalid presets')
+      return content.map((entry) => {
+        const row = object(entry)
+        return { id: textValue(row.id), name: presetName(row.name), options: presetOptions(row.options) }
+      })
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return []
+      throw new Error('无法读取操作预设，请检查应用数据目录', { cause: error })
+    }
+  }
+
+  async listPresets() {
+    await this.presetWrites
+    return this.readPresets()
+  }
+
+  private changePresets<T>(change: (presets: CaptionPreset[], path: string) => Promise<T>) {
+    const write = this.presetWrites.then(async () => change(await this.readPresets(), join(this.root, 'presets.json')))
+    this.presetWrites = write.then(() => undefined, () => undefined)
+    return write
+  }
+
+  async savePreset(rawName: unknown, rawOptions: unknown, rawReplaceId?: unknown): Promise<SaveCaptionPresetResult> {
+    const name = presetName(rawName)
+    const options = presetOptions(rawOptions)
+    const replaceId = rawReplaceId === undefined ? undefined : textValue(rawReplaceId)
+    return this.changePresets(async (presets, path) => {
+      const duplicate = presets.find((preset) => presetNameKey(preset.name) === presetNameKey(name))
+      if (duplicate && replaceId === undefined) return { duplicate }
+      if (replaceId !== undefined && replaceId !== duplicate?.id) throw new Error('同名预设已变更，请重新保存')
+      const saved = { id: duplicate?.id ?? randomUUID(), name, options }
+      const next = duplicate ? presets.map((preset) => preset.id === duplicate.id ? saved : preset) : [...presets, saved]
+      await writeCaptionData(path, next)
+      return { presets: next, saved }
+    })
+  }
+
+  async removePreset(rawId: unknown) {
+    const id = textValue(rawId)
+    return this.changePresets(async (presets, path) => {
+      const next = presets.filter((preset) => preset.id !== id)
+      if (next.length !== presets.length) await writeCaptionData(path, next)
+      return next
+    })
+  }
   locate(id: string) { return this.paths.get(id) }
 
   private job(id: string) {

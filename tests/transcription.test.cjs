@@ -315,6 +315,34 @@ test('settings hide and encrypt keys, preserve defaults and avoid credential reu
   assert.equal(config.settings().llm.hasKey, false)
 })
 
+test('operation presets persist validated settings and require confirmation to overwrite', async (t) => {
+  const dir = await folder(t)
+  const context = {
+    dataDirectory: dir, settings: {}, tools: async () => tools, outputDirectory: () => '',
+    authorize: () => assert.fail('saving presets should not grant file access'),
+    notify: () => {}, notifyRemoved: () => {}, render: async () => assert.fail('saving presets should not render'),
+  }
+  const before = new TranscriptionWorkspace(context)
+  assert.deepEqual(await before.listPresets(), [])
+  const options = defaults({ mode: 'transcribe', formats: ['vtt', 'ass'], output: 'C:\\private-export',
+    style: { ...captions.defaultStyle, fontFile: 'C:\\private-font.ttf', size: 58 }, apiKey: 'not-a-preset-option' })
+  const [first, duplicate] = await Promise.all([before.savePreset('  快速 VTT  ', options), before.savePreset('快速 vtt', options)])
+  assert.equal(first.saved.name, '快速 VTT')
+  assert.equal(duplicate.duplicate.id, first.saved.id)
+  const persisted = await readFile(join(dir, 'transcription', 'presets.json'), 'utf8')
+  assert.doesNotMatch(persisted, /private-|apiKey|not-a-preset-option/)
+  const after = new TranscriptionWorkspace(context)
+  assert.deepEqual(await after.listPresets(), first.presets)
+  await assert.rejects(after.savePreset('快速 VTT', options, 'stale-id'), /同名预设已变更/)
+  await assert.rejects(after.savePreset('另一套', { ...options, formats: ['invalid'] }), /转录选项无效/)
+  const overwritten = await after.savePreset('快速 VTT', { ...options, formats: ['srt'] }, first.saved.id)
+  assert.equal(overwritten.saved.id, first.saved.id)
+  assert.deepEqual(overwritten.saved.options.formats, ['srt'])
+  assert.equal(overwritten.saved.options.style.size, 58)
+  assert.deepEqual(await after.removePreset(first.saved.id), [])
+  assert.deepEqual(await before.listPresets(), [])
+})
+
 function makeVideo(path) {
   ffmpeg('-f', 'lavfi', '-i', 'color=blue:size=320x240:rate=25:duration=3',
     '-f', 'lavfi', '-i', 'sine=frequency=500:duration=3',

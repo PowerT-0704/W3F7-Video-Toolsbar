@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import { AlertCircle, ArrowDownToLine, Check, FileMusic, FolderOpen, ImageIcon, LoaderCircle, Upload, X } from 'lucide-react'
 import type { MusicImage, MusicSelection, SquareCrop } from '../bridge'
-import { api, errorText, type EngineStatus } from '../workspace'
+import { api, errorText, interfaceCopy, type EngineStatus } from '../workspace'
 import { ActionButton } from '../ui/action-button'
 import { Alert, AlertDescription, AlertTitle } from '../ui/shadcn/alert'
 import { Badge } from '../ui/shadcn/badge'
@@ -105,7 +105,7 @@ export function MusicPage({ active, engine, onOpenSettings, onRetry }: {
       if (ready && !busy && !candidate && files.length) void load(() => api.dropMusic(files))
     }}>
       <header className="page-header">
-        <div className="grid gap-1.5"><h1>音乐封面解析</h1><p>预览 FLAC 和 MP3，导出内嵌封面与歌词，也可另存带新封面或歌词的音频副本。</p></div>
+        <div className="grid gap-1.5"><h1>音乐封面解析</h1><p>预览 FLAC 和 MP3，导出内嵌封面与歌词，也可另存带新封面或歌词的音频副本</p></div>
         <Badge variant="outline" role="status">
           {ready ? 'FFmpeg 已就绪' : engine.kind === 'checking' ? '正在检测 FFmpeg' : 'FFmpeg 需配置'}
         </Badge>
@@ -128,7 +128,7 @@ export function MusicPage({ active, engine, onOpenSettings, onRetry }: {
         <EmptyHeader>
           <EmptyMedia variant="icon"><FileMusic /></EmptyMedia>
           <EmptyTitle>{dragging ? '松开鼠标，导入素材' : '拖入 FLAC 或 MP3'}</EmptyTitle>
-          <EmptyDescription>可以同时拖入一个 .lrc 歌词文件。</EmptyDescription>
+          <EmptyDescription>可以同时拖入一个 .lrc 歌词文件</EmptyDescription>
         </EmptyHeader>
         <EmptyContent><Button variant="outline" disabled={!ready || !!busy} onClick={() => void load(api.pickMusic)}><Upload />选择音频</Button></EmptyContent>
       </Empty> : <>
@@ -157,7 +157,7 @@ export function MusicPage({ active, engine, onOpenSettings, onRetry }: {
                 <img key={previewLabel} className="block max-h-64 w-full object-contain" src={previewLabel} alt={cover.label}
                   onError={() => setPreviewError(previewLabel)} />
               </figure> : <p className="text-muted-foreground text-sm">
-                {!cover ? '无内嵌封面' : cover.extension ? '无法预览此封面，可尝试另存原图。' : '检测到内嵌封面，当前无法导出此图片格式。'}
+                {!cover ? '无内嵌封面' : cover.extension ? '无法预览此封面，可尝试另存原图' : '检测到内嵌封面，当前无法导出此图片格式'}
               </p>}
               <div className="flex flex-wrap items-center gap-2">
                 {cover?.extension && <span className="text-muted-foreground mr-auto text-xs">{cover.width && cover.height ? cover.width + ' × ' + cover.height + ' · ' : ''}{cover.extension.toUpperCase()}</span>}
@@ -170,7 +170,7 @@ export function MusicPage({ active, engine, onOpenSettings, onRetry }: {
                   if (cover && await api.saveMusicCover(audio.id, cover.index)) setNotice('封面已保存')
                 })}><ArrowDownToLine />另存封面</Button>
               </div>
-              {coverIssue && <p className="text-muted-foreground text-xs">{coverIssue}</p>}
+              {coverIssue && <p className="text-muted-foreground text-xs">{interfaceCopy(coverIssue)}</p>}
               {draft && <div className="music-cover-draft">
                 <img src={draft.preview} alt="待封装正面封面" />
                 <div className="min-w-0">
@@ -205,9 +205,9 @@ export function MusicPage({ active, engine, onOpenSettings, onRetry }: {
               <CardHeader><CardTitle>音频副本</CardTitle></CardHeader>
               <CardContent className="grid gap-3">
                 <p className="text-muted-foreground text-sm break-words" title={imported?.name}>
-                  {imported ? (lyricIssue ? '仅预览 · ' : '待封装歌词 · ') + imported.name : audio.lyricWarning || (audio.lyrics.length ? '可导入本地 LRC 替换内嵌歌词。' : '无内嵌歌词')}
+                  {imported ? (lyricIssue ? '仅预览 · ' : '待封装歌词 · ') + imported.name : interfaceCopy(audio.lyricWarning || (audio.lyrics.length ? '可导入本地 LRC 替换内嵌歌词' : '无内嵌歌词'))}
                 </p>
-                {audio.lyricWriteIssue && <p className="text-muted-foreground text-xs">{audio.lyricWriteIssue}</p>}
+                {audio.lyricWriteIssue && <p className="text-muted-foreground text-xs">{interfaceCopy(audio.lyricWriteIssue)}</p>}
                 <div className="flex flex-wrap gap-2">
                   <Button variant="outline" disabled={!!busy} onClick={() => void load(() => api.pickMusicLyric(audio.id))}>
                     <Upload />{imported ? '更换 LRC' : '导入 LRC'}

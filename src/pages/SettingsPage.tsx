@@ -32,7 +32,7 @@ export function SettingsPage({ active, preferences, engine, error, systemReduced
   return (
     <section className="page-layout settings-layout">
       <header className="page-header">
-        <div className="grid gap-1.5"><h1>设置</h1><p>管理外观、动效、FFmpeg、默认输出位置和媒体缓存。</p></div>
+        <div className="grid gap-1.5"><h1>设置</h1><p>管理外观、动效、FFmpeg、默认输出位置和媒体缓存</p></div>
       </header>
       {error && <Alert variant="destructive"><AlertCircle /><AlertDescription>{error}</AlertDescription></Alert>}
       <Card>
@@ -47,8 +47,8 @@ export function SettingsPage({ active, preferences, engine, error, systemReduced
             <div>
               <label htmlFor="reduce-motion" className="text-sm font-medium">减少动效</label>
               <p id="motion-description" className="text-muted-foreground text-sm">{systemReduced
-                ? 'Windows 已启用减少动效，应用正在遵循系统偏好。'
-                : 'Windows 动画已开启。可在此单独减少应用动效。'}</p>
+                ? 'Windows 已启用减少动效，应用正在遵循系统偏好'
+                : 'Windows 动画已开启。可在此单独减少应用动效'}</p>
             </div>
             <Switch id="reduce-motion" aria-label="减少动效" aria-describedby="motion-description" checked={preferences.reduceMotion}
               onCheckedChange={(value) => void onSave(() => api.setReducedMotion(value))} />
@@ -57,7 +57,7 @@ export function SettingsPage({ active, preferences, engine, error, systemReduced
       </Card>
 
       <Card>
-        <CardHeader><CardTitle>FFmpeg</CardTitle><CardDescription>使用同一个 FFmpeg 构建中的 ffmpeg.exe 和 ffprobe.exe。</CardDescription></CardHeader>
+        <CardHeader><CardTitle>FFmpeg</CardTitle><CardDescription>使用同一个 FFmpeg 构建中的 ffmpeg.exe 和 ffprobe.exe</CardDescription></CardHeader>
         <CardContent className="grid gap-4">
           <div className="setting-row">
             <div className="min-w-0">
@@ -78,8 +78,8 @@ export function SettingsPage({ active, preferences, engine, error, systemReduced
             </dl>
           </>}
           {engine.kind !== 'checking' && <p className="text-muted-foreground text-sm">
-            {engine.inPath ? '系统 PATH 中已找到可用的 FFmpeg 和 FFprobe。' : '系统 PATH 中未找到可用的 FFmpeg 和 FFprobe。'}
-            {preferences.toolDirectory && !tools && ' 当前选择的目录也不可用。'}
+            {engine.inPath ? '系统 PATH 中已找到可用的 FFmpeg 和 FFprobe' : '系统 PATH 中未找到可用的 FFmpeg 和 FFprobe'}
+            {preferences.toolDirectory && !tools && ' · 当前选择的目录也不可用'}
           </p>}
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={onRetry} disabled={engine.kind === 'checking'}><RotateCw />重新检测</Button>
@@ -111,7 +111,7 @@ export function SettingsPage({ active, preferences, engine, error, systemReduced
         <CardContent className="setting-row">
           <div>
             <p className="text-sm font-medium">资源管理器缩略图</p>
-            <p className="text-muted-foreground text-sm">如果缩略图仍取自影片画面，可手动配置 Icaros。</p>
+            <p className="text-muted-foreground text-sm">如果缩略图仍取自影片画面，可手动配置 Icaros</p>
           </div>
           <Button variant="outline" onClick={() => void api.openLink('icaros')}><MonitorPlay />Icaros 设置说明<ArrowUpRight /></Button>
         </CardContent>

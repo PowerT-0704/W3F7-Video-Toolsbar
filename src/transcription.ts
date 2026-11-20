@@ -53,6 +53,14 @@ export interface CaptionOptions {
   output?: string
 }
 
+export interface CaptionPreset {
+  id: string
+  name: string
+  options: Omit<CaptionOptions, 'output' | 'style'> & { style: Omit<SubtitleStyle, 'fontFile'> }
+}
+
+export type SaveCaptionPresetResult = { presets: CaptionPreset[]; saved: CaptionPreset } | { duplicate: CaptionPreset }
+
 export interface CaptionAsset {
   id: string
   name: string
@@ -146,6 +154,9 @@ export interface TranscriptionAPI {
   reveal: (id: string) => Promise<void>
   settings: () => Promise<CaptionSettings>
   save: (settings: CaptionSettingsChange) => Promise<CaptionSettings>
+  listPresets: () => Promise<CaptionPreset[]>
+  savePreset: (name: string, options: CaptionOptions, replaceId?: string) => Promise<SaveCaptionPresetResult>
+  removePreset: (id: string) => Promise<CaptionPreset[]>
   testModel: () => Promise<string>
   checkProgram: (engine: ExternalWhisper) => Promise<WhisperCapabilities>
   onTask: (callback: (task: CaptionTask) => void) => () => void

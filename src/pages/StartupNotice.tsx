@@ -47,8 +47,8 @@ export function StartupNotice({ mode, systemReduced, engine, customTools, onClos
             </div>
           </div>
           <Dialog.Description className="text-muted-foreground text-sm leading-relaxed">
-            {welcome ? '从起始页进入视频封面封装或音乐封面解析，在本地处理 MP4、FLAC 和 MP3。' :
-              '应用正在遵循系统设置，界面会省略部分过渡和动画。'}
+            {welcome ? '从起始页进入视频封面封装或音乐封面解析，在本地处理 MP4、FLAC 和 MP3' :
+              '应用正在遵循系统设置，界面会省略部分过渡和动画'}
           </Dialog.Description>
           {welcome && <dl className="startup-checks" aria-live="polite">
             <div><dt>Windows 动画</dt><dd>{systemReduced ? '已关闭，应用将减少动效' : '已开启'}</dd></div>

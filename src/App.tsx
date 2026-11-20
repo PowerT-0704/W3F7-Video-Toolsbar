@@ -3,7 +3,7 @@ import type { CSSProperties, MouseEvent } from 'react'
 import { AudioLines, Clapperboard, Cpu, FileMusic, History, House, Info, Network, Settings2 } from 'lucide-react'
 import { LayoutGroup, motion } from 'motion/react'
 import type { Page, Preferences, Theme, UpdateResult } from './bridge'
-import { api, applyTheme, errorText, initialTheme, type EngineStatus } from './workspace'
+import { api, applyTheme, errorText, initialTheme, interfaceCopy, type EngineStatus } from './workspace'
 import { AboutPage } from './pages/AboutPage'
 import { ChangelogPage } from './pages/ChangelogPage'
 import { CoverPage } from './pages/CoverPage'
@@ -85,7 +85,14 @@ export function App() {
 
   function dismissSidebarOnBackground(event: MouseEvent<HTMLElement>) {
     const target = event.target
-    if (event.defaultPrevented || event.button !== 0 || !(target instanceof HTMLElement)) return
+    if (event.defaultPrevented || event.button !== 0 || !(target instanceof Element) || !event.currentTarget.contains(target)) return
+    const viewport = target.closest('[data-page-state="active"]')
+    const wrapsCaption = viewport?.matches('[data-page="transcription"], [data-page="models"]')
+    if (wrapsCaption) {
+      const interactive = target.closest('button, a, label, input, select, textarea, summary, video, audio, [contenteditable], [role="tablist"], [role="dialog"], [role="alertdialog"], [role="slider"]')
+      if (!interactive && window.getSelection()?.type !== 'Range') sidebar.dismissPin()
+      return
+    }
     if (target === event.currentTarget || target.matches('.workspace-container, .page-viewport, .page-transition, .page-layout, .page-header, .home-hero')) {
       sidebar.dismissPin()
     }
@@ -114,7 +121,7 @@ export function App() {
     try {
       const { tools, inPath, message } = await api.detect()
       if (revision === engineRevision.current) setEngine(tools ? { kind: 'ready', tools, inPath } :
-        { kind: 'missing', message: message || '未找到可用的 FFmpeg 和 FFprobe。', inPath })
+        { kind: 'missing', message: interfaceCopy(message || '未找到可用的 FFmpeg 和 FFprobe'), inPath })
     } catch (reason) {
       if (revision === engineRevision.current) setEngine({ kind: 'missing', message: errorText(reason), inPath: false })
     }
@@ -123,7 +130,7 @@ export function App() {
   const checkUpdates = useCallback(async () => {
     setCheckingUpdate(true)
     try { setUpdate(await api.checkUpdates()) }
-    catch { setUpdate({ kind: 'error', message: '暂时无法检查更新，请稍后重试。' }) }
+    catch { setUpdate({ kind: 'error', message: '暂时无法检查更新，请稍后重试' }) }
     finally { setCheckingUpdate(false) }
   }, [])
 

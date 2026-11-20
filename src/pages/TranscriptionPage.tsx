@@ -5,14 +5,16 @@ import { AnimatePresence, motion } from 'motion/react'
 import { Tabs } from 'radix-ui'
 import type { CaptionAsset, CaptionCue, CaptionFormat, CaptionInput, CaptionLayout, CaptionMode, CaptionOptions, CaptionTask,
   SubtitleStyle } from '../transcription'
-import { api, errorText, type EngineStatus } from '../workspace'
+import { api, errorText, interfaceCopy, type EngineStatus } from '../workspace'
 import { ActionButton } from '../ui/action-button'
 import { useMotionEnabled } from '../ui/motion-policy'
 import { Button } from '../ui/shadcn/button'
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/shadcn/card'
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '../ui/shadcn/card'
 import { CaptionSelect, CaptionToggle, Field, FormatChecks, LayoutSelect, NumberField, PathField, TextField, engineNames,
   parseTime, targetLanguages, timeLabel } from './CaptionControls'
 import { CaptionQueue, captionStateNames as stateNames, captionWorking as waiting } from './CaptionQueue'
+import { CaptionPresets } from './CaptionPresets'
+import { CaptionTabs, type CaptionView } from './CaptionTabs'
 import './caption.css'
 
 const initialOptions: CaptionOptions = {
@@ -33,8 +35,6 @@ const translators: [CaptionOptions['translator'], string][] = [
 ]
 
 const workflowNeedsMedia = (mode: CaptionMode) => mode !== 'subtitles'
-const workViews = [['jobs', '任务设置'], ['polish', '字幕优化与翻译'], ['synthesis', '字幕视频合成']] as const
-type WorkView = typeof workViews[number][0]
 type Batch = { ids: string[]; recognized: boolean }
 
 function chime(audio: AudioContext | undefined) {
@@ -126,7 +126,7 @@ function Editor({ task, visible, onChange, onAction, onDirty }: { task: CaptionT
   }
 
   function previewFallback() {
-    if (!task.media || fallback) { setPreviewError('本机播放器无法预览此文件，字幕仍可编辑和导出。'); return }
+    if (!task.media || fallback) { setPreviewError('本机播放器无法预览此文件，字幕仍可编辑和导出'); return }
     setFallback(true)
     setPreviewError('正在生成本地预览副本…')
     void captionApi.preview(task.media.id)
@@ -150,7 +150,7 @@ function Editor({ task, visible, onChange, onAction, onDirty }: { task: CaptionT
   function merge() {
     const positions = draft.flatMap((line, index) => selected.has(line.id) ? [index] : [])
     if (positions.length < 2 || positions.at(-1)! - positions[0] !== positions.length - 1) {
-      setTimeError('请选择连续的两行或更多字幕。')
+      setTimeError('请选择连续的两行或更多字幕')
       return
     }
     const start = positions[0]
@@ -170,7 +170,7 @@ function Editor({ task, visible, onChange, onAction, onDirty }: { task: CaptionT
 
   async function save() {
     const bad = draft.find((line) => !Number.isFinite(line.start) || !Number.isFinite(line.end) || line.start >= line.end || !line.text.trim())
-    if (bad) throw new Error('第 ' + bad.id + ' 行的时间或原文无效。')
+    if (bad) throw new Error('第 ' + bad.id + ' 行的时间或原文无效')
     onChange(await captionApi.edit(task.id, task.revision, draft))
   }
 
@@ -236,7 +236,7 @@ function Editor({ task, visible, onChange, onAction, onDirty }: { task: CaptionT
               aria-label={(kind === 'start' ? '开始时间 ' : '结束时间 ') + line.id} onBlur={(event) => {
                 const value = parseTime(event.currentTarget.value)
                 if (!Number.isFinite(value)) {
-                  setTimeError('请输入 HH:MM:SS.mmm 格式。')
+                  setTimeError('请输入 HH:MM:SS.mmm 格式')
                   event.currentTarget.value = timeLabel(line[kind])
                   return
                 }
@@ -252,7 +252,7 @@ function Editor({ task, visible, onChange, onAction, onDirty }: { task: CaptionT
         <div style={{ height: Math.max(0, draft.length - first - shown.length) * 72 }} aria-hidden />
       </div>
     </div>
-    {changed && <p className="caption-muted" role="status">有未保存的校对内容。</p>}
+    {changed && <p className="caption-muted" role="status">有未保存的校对内容</p>}
   </div>
 }
 
@@ -301,8 +301,8 @@ function TaskSynthesis({ task, onAction, dirty }: TaskActionProps) {
           <Clapperboard />合成视频
         </ActionButton>
       </div>
-    </div> : <p className="caption-muted">请选择带字幕的视频任务。</p>}
-    {dirty && <p className="caption-muted" role="status">请先回到「字幕优化与翻译」保存校对。</p>}
+    </div> : <p className="caption-muted">请选择带字幕的视频任务</p>}
+    {dirty && <p className="caption-muted" role="status">请先回到「字幕优化与翻译」保存校对</p>}
   </div>
 }
 
@@ -342,7 +342,7 @@ export function TranscriptionPage({ active, engine, onConfigure, onSettings }: {
   const [options, setOptions] = useState(initialOptions)
   const [tasks, setTasks] = useState<CaptionTask[]>([])
   const [taskId, setTaskId] = useState('')
-  const [view, setView] = useState<WorkView>('jobs')
+  const [view, setView] = useState<CaptionView>('jobs')
   const [batch, setBatch] = useState<Batch>()
   const [dirty, setDirty] = useState(false)
   const [error, setError] = useState('')
@@ -442,7 +442,7 @@ export function TranscriptionPage({ active, engine, onConfigure, onSettings }: {
     void action(async () => {
       const result = await run()
       setAssets((old) => [...new Map([...old, ...result.assets].map((asset) => [asset.id, asset])).values()])
-      if (result.errors.length) setError(result.errors.join('\n'))
+      if (result.errors.length) setError(interfaceCopy(result.errors.join('\n')))
     })
   }
 
@@ -514,8 +514,8 @@ export function TranscriptionPage({ active, engine, onConfigure, onSettings }: {
       choices={tasks.map((item) => [item.id, `${item.name} · ${stateNames[item.state]}`])} />
   </div>
   const taskStatus = task && <>
-    <div className="caption-task-status" aria-live="polite"><span>{stateNames[task.state]} · {task.message}</span>{taskControls}</div>
-    {!!task.warnings.length && <ul className="caption-warnings">{task.warnings.map((warning, index) => <li key={index}>{warning}</li>)}</ul>}
+    <div className="caption-task-status" aria-live="polite"><span>{stateNames[task.state]} · {interfaceCopy(task.message)}</span>{taskControls}</div>
+    {!!task.warnings.length && <ul className="caption-warnings">{task.warnings.map((warning, index) => <li key={index}>{interfaceCopy(warning)}</li>)}</ul>}
   </>
   const runTaskAction = (run: () => Promise<void>) => void action(run)
 
@@ -528,24 +528,17 @@ export function TranscriptionPage({ active, engine, onConfigure, onSettings }: {
       if (!depth.current) setDragging(false)
     }}>
     <header className="page-header caption-title">
-      <div><h1>语音转录</h1><p>从本地音视频生成字幕，校对后导出或合成。</p></div>
+      <div><h1>语音转录</h1><p>从本地音视频生成字幕，校对后导出或合成</p></div>
       <Button variant="outline" onClick={onConfigure}>模型与 API</Button>
     </header>
     {error && <p className="caption-feedback text-destructive" role="alert">{error}</p>}
     {engine.kind === 'missing' && <div className="caption-feedback"><span>{engine.message}</span>
       <Button variant="outline" size="sm" onClick={onSettings}>设置 FFmpeg</Button></div>}
-    <Tabs.Root className="caption-tabs" value={view} onValueChange={(next) => setView(next as WorkView)}>
-      <Tabs.List className="caption-tabs-list" aria-label="语音转录工作区">
-        {workViews.map(([id, label]) => <Tabs.Trigger key={id} value={id} className="caption-tab">
-          {animated && view === id && <motion.span layoutId="caption-tab-selection" className="caption-tab-selection" aria-hidden="true"
-            transition={{ type: 'spring', stiffness: 420, damping: 34 }} />}<span>{label}</span>
-        </Tabs.Trigger>)}
-      </Tabs.List>
+    <CaptionTabs value={view} onChange={setView} active={active} animated={animated}>
       <Tabs.Content value="jobs" forceMount className="caption-pane caption-jobs-pane">
         <div className="caption-job-scroll" tabIndex={0} aria-label="输入素材和处理设置">
           <div className="caption-workbench">
-      <div className="caption-stack">
-        <Card>
+        <Card className="caption-input-card" data-populated={Boolean(assets.length)}>
           <CardHeader><CardTitle><Film />输入素材</CardTitle></CardHeader>
           <CardContent className="caption-stack">
             <div className="caption-drop" data-over={dragging}>
@@ -584,10 +577,10 @@ export function TranscriptionPage({ active, engine, onConfigure, onSettings }: {
             </ul>}
           </CardContent>
         </Card>
-      </div>
-      <Card>
+      <Card className="caption-processing-card">
         <CardHeader><CardTitle><AudioLines />处理与输出</CardTitle></CardHeader>
-        <CardContent className="caption-stack">
+        <CardContent className="caption-stack caption-processing-scroll" tabIndex={0} aria-label="处理与输出参数">
+          <CaptionPresets options={options} onApply={setOptions} />
           <CaptionSelect label="默认任务模式" value={options.mode} onChange={(value) => update('mode', value)} choices={modes} />
           {recognize && <div className="caption-grid">
             <CaptionSelect label="识别引擎" value={options.engine} onChange={(value) =>
@@ -640,15 +633,17 @@ export function TranscriptionPage({ active, engine, onConfigure, onSettings }: {
             {[...recipients].map((text) => <li key={text}>{text}</li>)}
           </ul>}
         </CardContent>
+        <CardFooter className="caption-processing-footer">
+          <ActionButton size="sm" disabled={dirty || submitting || !inputs.length || engine.kind === 'missing' && workflowNeedsMedia(options.mode)}
+            onClick={submit} shimmer="ready"><Play />{inputs.length > 1 ? '添加 ' + inputs.length + ' 项任务' : '开始处理'}</ActionButton>
+        </CardFooter>
       </Card>
+      <CaptionQueue tasks={tasks} selected={task} dirty={dirty} busy={running > 0} active={active && view === 'jobs'}
+        progress={progressTask} total={batchItems.length || running} ended={ended} completed={completed} submitting={submitting}
+        onSelect={setTaskId} onRemove={removeTask} onReview={() => setView('polish')} onSynthesis={() => setView('synthesis')}
+        onCancelAll={() => void action(() => captionApi.cancel())}>{taskControls}</CaptionQueue>
           </div>
         </div>
-        <CaptionQueue tasks={tasks} selected={task} dirty={dirty} busy={running > 0} active={active && view === 'jobs'}
-          progress={progressTask} total={batchItems.length || running} ended={ended} completed={completed} submitting={submitting}
-          onSelect={setTaskId} onRemove={removeTask} onReview={() => setView('polish')} onSynthesis={() => setView('synthesis')}
-          start={<ActionButton size="sm" disabled={dirty || submitting || !inputs.length || engine.kind === 'missing' && workflowNeedsMedia(options.mode)}
-            onClick={submit} shimmer="ready"><Play />{inputs.length > 1 ? '添加 ' + inputs.length + ' 项任务' : '开始处理'}</ActionButton>}
-          onCancelAll={() => void action(() => captionApi.cancel())}>{taskControls}</CaptionQueue>
       </Tabs.Content>
       <Tabs.Content value="polish" forceMount className="caption-pane">
         <Card className="caption-task">
@@ -660,7 +655,7 @@ export function TranscriptionPage({ active, engine, onConfigure, onSettings }: {
               {!!task.cues.length && <Editor key={task.id + ':' + task.revision} task={task} visible={active && view === 'polish'}
                 onDirty={setDirty} onChange={replaceTask} onAction={runTaskAction} />}
               <SubtitleExports key={task.id} task={task} dirty={dirty} onAction={runTaskAction} />
-            </> : <p className="caption-muted">先在「任务设置」提交转录或字幕任务。</p>}
+            </> : <p className="caption-muted">先在「任务设置」提交转录或字幕任务</p>}
           </CardContent>
         </Card>
       </Tabs.Content>
@@ -673,10 +668,10 @@ export function TranscriptionPage({ active, engine, onConfigure, onSettings }: {
               {taskStatus}
               <TaskSynthesis key={task.id} task={task} dirty={dirty} onAction={runTaskAction} />
               {dirty && <Button variant="outline" className="justify-self-start" onClick={() => setView('polish')}>返回校对</Button>}
-            </> : <p className="caption-muted">先在「任务设置」提交带字幕的视频任务。</p>}
+            </> : <p className="caption-muted">先在「任务设置」提交带字幕的视频任务</p>}
           </CardContent>
         </Card>
       </Tabs.Content>
-    </Tabs.Root>
+    </CaptionTabs>
   </section>
 }

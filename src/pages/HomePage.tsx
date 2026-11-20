@@ -61,7 +61,10 @@ export function HomePage({ active, onOpenCover, onOpenMusic, onOpenTranscription
         <div className="home-copy">
           <BlurFade delay={0.045}>
             <h1>W3F7の<span>Video_Toolsbar</span></h1>
-            <p>面向音视频工作流的工具箱。封装 MP4 封面，处理音乐封面和歌词，或把音视频转成可校对的字幕。</p>
+            <div className="home-description">
+              <p>面向音视频工作流的工具箱</p>
+              <p>封装 MP4 封面、处理音乐封面与歌词、生成可校对的字幕</p>
+            </div>
           </BlurFade>
           <BlurFade delay={0.095}>
             <div className="home-actions">

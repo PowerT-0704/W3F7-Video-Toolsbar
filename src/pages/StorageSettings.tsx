@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { AlertDialog } from 'radix-ui'
 import { AlertCircle, FolderOpen, HardDrive, Trash2 } from 'lucide-react'
 import type { MediaCacheMove, MediaCacheStatus, Preferences } from '../bridge'
-import { api, errorText } from '../workspace'
+import { api, errorText, interfaceCopy } from '../workspace'
 import { useMotionEnabled } from '../ui/motion-policy'
 import { Alert, AlertDescription } from '../ui/shadcn/alert'
 import { Button } from '../ui/shadcn/button'
@@ -46,7 +46,7 @@ export function StorageSettings({ directory, onPreferences }: {
       const result = await action()
       if (!result) return ''
       onPreferences(result.preferences)
-      return `已更新缓存位置，迁移 ${size(result.moved)}。${result.incomplete ? '旧位置有个别副本未能删除。' : ''}`
+      return `已更新缓存位置，迁移 ${size(result.moved)}${result.incomplete ? ' · 旧位置有个别副本未能删除' : ''}`
     })
   }
 
@@ -54,7 +54,7 @@ export function StorageSettings({ directory, onPreferences }: {
     <Card aria-busy={busy}>
       <CardHeader>
         <CardTitle className="flex items-center gap-2"><HardDrive className="text-muted-foreground size-4" />存储与缓存</CardTitle>
-        <CardDescription>管理抽帧图片和从视频生成的临时封面。</CardDescription>
+        <CardDescription>管理抽帧图片和从视频生成的临时封面</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-3.5">
         <div className="cache-location grid min-w-0 gap-1.5">
@@ -72,19 +72,19 @@ export function StorageSettings({ directory, onPreferences }: {
               <AlertDialog.Overlay className="qr-overlay" data-reduced={!animated} />
               <AlertDialog.Content className="qr-dialog" data-reduced={!animated}>
                 <AlertDialog.Title className="font-semibold">清理媒体缓存？</AlertDialog.Title>
-                <AlertDialog.Description className="text-muted-foreground text-sm">将清理闲置的抽帧图片与临时封面。正在显示的帧、选中的封面和已导出的文件会保留。</AlertDialog.Description>
+                <AlertDialog.Description className="text-muted-foreground text-sm">将清理闲置的抽帧图片与临时封面。正在显示的帧、选中的封面和已导出的文件会保留</AlertDialog.Description>
                 <div className="flex justify-end gap-2">
                   <AlertDialog.Cancel asChild><Button variant="outline">取消</Button></AlertDialog.Cancel>
                   <AlertDialog.Action asChild><Button variant="destructive" onClick={() => void run(async () => {
                     const result = await api.clearMediaCache()
-                    return `已释放 ${size(result.released)}。${result.incomplete ? '部分闲置文件暂时无法删除。' : ''}`
+                    return `已释放 ${size(result.released)}${result.incomplete ? ' · 部分闲置文件暂时无法删除' : ''}`
                   })}>确认清理</Button></AlertDialog.Action>
                 </div>
               </AlertDialog.Content>
             </AlertDialog.Portal>
           </AlertDialog.Root>
         </div>
-        {status?.warning && <Alert><AlertCircle /><AlertDescription>{status.warning}</AlertDescription></Alert>}
+        {status?.warning && <Alert><AlertCircle /><AlertDescription>{interfaceCopy(status.warning)}</AlertDescription></Alert>}
         {error && <Alert variant="destructive"><AlertCircle /><AlertDescription>{error}</AlertDescription></Alert>}
         <div role="status" className="text-muted-foreground text-sm empty:hidden">{busy ? '正在处理缓存…' : message}</div>
       </CardContent>

@@ -556,7 +556,7 @@ body, #root { height: 100dvh; overflow: hidden; }
     linear-gradient(158deg, #151515 0%, #111111 52%, #0e0e0e 100%);
   overflow: hidden;
 }
-.home-copy { display: grid; gap: 20px; position: relative; }
+.home-copy { display: grid; gap: clamp(16px, 2.2vw, 25px); min-width: 0; position: relative; }
 .home-copy h1 {
   color: var(--foreground);
   font-size: clamp(2rem, 4.3vw, 3.45rem);
@@ -566,7 +566,9 @@ body, #root { height: 100dvh; overflow: hidden; }
   overflow-wrap: anywhere;
 }
 .home-copy h1 span { display: inline-block; }
-.home-copy p { max-width: 33rem; color: var(--muted-foreground); line-height: 1.7; margin-top: 14px; }
+.home-description { display: grid; gap: 5px; margin-top: clamp(12px, 2vw, 19px); line-height: 1.58; }
+.home-description p:first-child { color: var(--foreground); font-weight: 520; }
+.home-description p + p { max-width: 33rem; color: var(--muted-foreground); font-size: clamp(.86rem, 1.35vw, .96rem); text-wrap: pretty; }
 .home-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 .home-footer { margin-top: auto; }
 .home-footer footer {

@@ -65,7 +65,7 @@ export function CaptionSettingsPage() {
   const selected = settings?.local[program]
   const flags = capabilities[program]
   return <section className="page-layout caption-page">
-    <header className="page-header"><h1>模型与 API</h1><p>配置字幕处理模型和可选的语音识别引擎。</p></header>
+    <header className="page-header"><h1>模型与 API</h1><p>配置字幕处理模型和可选的语音识别引擎</p></header>
     {error && <p className="caption-feedback text-destructive" role="alert">{error}</p>}
     {status && <p className="caption-feedback" role="status"><CheckCircle2 size={16} />{status}</p>}
     {settings && selected && <fieldset disabled={busy} className="caption-settings">
@@ -113,7 +113,7 @@ export function CaptionSettingsPage() {
         <CardContent className="caption-stack">
           <CaptionSelect label="外置程序" value={program} onChange={setProgram}
             choices={[['whisper-cpp', 'whisper.cpp'], ['faster-whisper', 'Faster Whisper']]} />
-          <p className="caption-muted">自行下载兼容的 Windows 程序和模型，然后在这里选择路径并检查。</p>
+          <p className="caption-muted">自行下载兼容的 Windows 程序和模型，然后在这里选择路径并检查</p>
           <div className="caption-grid">
             <PathField label="程序 EXE" value={selected.executable} onChoose={() => choose('program', 'executable')}
               onClear={() => updateProgram(program, 'executable', '')} />
@@ -156,14 +156,14 @@ export function CaptionEnginesPage({ engine, onConfigure, onRetry }: { engine: E
   const [checking, setChecking] = useState<ExternalWhisper>()
   useEffect(() => { void api.transcription.settings().then(setSettings).catch(() => setSettings(undefined)) }, [])
   const rows = [
-    [engineNames.bijian, '联网 · 上传音频', '中英语音，句段与字词时间，默认识别服务。'],
-    [engineNames.jianying, '联网 · 上传音频', '中英语音，依赖签名与上传服务，时间精度以返回结果为准。'],
-    [engineNames['whisper-api'], '联网 · 独立 API 配置', '语言和时间粒度由所选模型决定。'],
-    [engineNames['whisper-cpp'], '离线 · 自备程序和模型', '输出句级 SRT，重断句可估算词时间。支持 VAD 的版本可选择 VAD 模型。'],
-    [engineNames['faster-whisper'], '离线 · 自备程序和模型', '词级时间、VAD、CPU/CUDA 和人声分离取决于 CLI 版本。'],
+    [engineNames.bijian, '联网 · 上传音频', '中英语音，句段与字词时间，默认识别服务'],
+    [engineNames.jianying, '联网 · 上传音频', '中英语音，依赖签名与上传服务，时间精度以返回结果为准'],
+    [engineNames['whisper-api'], '联网 · 独立 API 配置', '语言和时间粒度由所选模型决定'],
+    [engineNames['whisper-cpp'], '离线 · 自备程序和模型', '输出句级 SRT，重断句可估算词时间。支持 VAD 的版本可选择 VAD 模型'],
+    [engineNames['faster-whisper'], '离线 · 自备程序和模型', '词级时间、VAD、CPU/CUDA 和人声分离取决于 CLI 版本'],
   ]
   return <section className="page-layout caption-page">
-    <header className="page-header"><h1>引擎说明</h1><p>查看语音识别、字幕处理和视频合成使用的服务。</p></header>
+    <header className="page-header"><h1>引擎说明</h1><p>查看语音识别、字幕处理和视频合成使用的服务</p></header>
     <div className="caption-stack">
       <Card><CardHeader><CardTitle><AudioLines />语音识别</CardTitle></CardHeader>
         <CardContent className="caption-stack">{rows.map(([name, source, text]) =>
@@ -172,7 +172,7 @@ export function CaptionEnginesPage({ engine, onConfigure, onRetry }: { engine: E
       </Card>
       <Card><CardHeader><CardTitle><Network />断句与翻译</CardTitle></CardHeader>
         <CardContent className="caption-stack">
-          <p>规则断句在本机运行。语义断句、校正和 LLM 翻译使用设置中的模型，默认 DeepSeek Flash。微软、谷歌和 DeepLX 可单独用于翻译。</p>
+          <p>规则断句在本机运行。语义断句、校正和 LLM 翻译使用设置中的模型，默认 DeepSeek Flash。微软、谷歌和 DeepLX 可单独用于翻译</p>
           <Button className="justify-self-start" variant="outline" onClick={onConfigure}>打开模型与 API</Button>
         </CardContent>
       </Card>

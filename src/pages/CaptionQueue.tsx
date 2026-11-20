@@ -6,6 +6,7 @@ import { useMotionEnabled } from '../ui/motion-policy'
 import { Button } from '../ui/shadcn/button'
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/shadcn/card'
 import { Progress } from '../ui/shadcn/progress'
+import { interfaceCopy } from '../workspace'
 
 export const captionStateNames: Record<CaptionTask['state'], string> = {
   queued: '排队中', running: '处理中', review: '待校对', done: '已完成', warning: '待复核', failed: '失败', cancelled: '已取消',
@@ -68,13 +69,13 @@ function QueueProgress({ task, total, ended, completed, active, submitting }: {
 }
 
 export function CaptionQueue({ tasks, selected, dirty, busy, active, progress, total, ended, completed, submitting,
-  onSelect, onRemove, onCancelAll, onReview, onSynthesis, start, children }: {
+  onSelect, onRemove, onCancelAll, onReview, onSynthesis, children }: {
   tasks: CaptionTask[]; selected?: CaptionTask; dirty: boolean; busy: boolean; active: boolean; progress?: CaptionTask
   total: number; ended: number; completed: boolean; submitting: boolean
   onSelect: (id: string) => void; onRemove: (id: string) => void; onCancelAll: () => void
-  onReview: () => void; onSynthesis: () => void; start: React.ReactNode; children?: React.ReactNode
+  onReview: () => void; onSynthesis: () => void; children?: React.ReactNode
 }) {
-  return <Card className="caption-queue-dock" aria-label="任务队列">
+  return <Card className="caption-queue-card" aria-label="任务队列">
     <CardHeader className="caption-queue-header">
       <CardTitle><Play />任务队列 <span className="caption-queue-count">{tasks.length}</span></CardTitle>
       <div className="caption-actions">
@@ -84,7 +85,6 @@ export function CaptionQueue({ tasks, selected, dirty, busy, active, progress, t
           <Button size="sm" variant="ghost" disabled={!selected.media?.video || !selected.cues.length} onClick={onSynthesis}>打开合成</Button>
         </>}
         {busy && <Button size="sm" variant="outline" onClick={onCancelAll}><Square />取消全部</Button>}
-        {start}
       </div>
     </CardHeader>
     <CardContent className="caption-stack">
@@ -92,13 +92,13 @@ export function CaptionQueue({ tasks, selected, dirty, busy, active, progress, t
         {tasks.map((item) => <li key={item.id}>
           <button type="button" className="caption-queue-select" disabled={dirty && item.id !== selected?.id}
             onClick={() => onSelect(item.id)} aria-pressed={selected?.id === item.id}>
-            <span><strong title={item.name}>{item.name}</strong><small title={item.message}>{captionStateNames[item.state]}{captionWorking(item) ? ' · ' + item.message : ''}</small></span>
+            <span><strong title={item.name}>{item.name}</strong><small title={interfaceCopy(item.message)}>{captionStateNames[item.state]}{captionWorking(item) ? ' · ' + interfaceCopy(item.message) : ''}</small></span>
             <ChevronRight size={16} />
           </button>
           {canRemove(item) && <Button size="icon-sm" variant="ghost" disabled={dirty && item.id === selected?.id}
             aria-label={'移除任务 ' + item.name} title="移除任务记录" onClick={() => onRemove(item.id)}><Trash2 /></Button>}
         </li>)}
-      </ul> : <p className="caption-muted">导入素材并开始处理后，任务会显示在这里。</p>}
+      </ul> : <p className="caption-muted">导入素材并开始处理后，任务会显示在这里</p>}
       {(total > 0 || progress || submitting) && <QueueProgress task={progress} total={total} ended={ended} completed={completed} active={active} submitting={submitting} />}
     </CardContent>
   </Card>

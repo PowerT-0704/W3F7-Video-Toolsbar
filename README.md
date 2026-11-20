@@ -4,7 +4,7 @@
 
 **面向视频与音频工作流的本地工具箱。**
 
-公开下载 **v1.3.1** · 当前源码 **v1.3.1**
+公开下载 **v1.3.1** · 当前源码 **v1.3.2**
 
 [![正式版](https://img.shields.io/github/v/release/PowerT-0704/W3F7-Video-Toolsbar?label=release&style=flat-square)](https://github.com/PowerT-0704/W3F7-Video-Toolsbar/releases/latest)
 [![Release 附件累计下载](https://img.shields.io/github/downloads/PowerT-0704/W3F7-Video-Toolsbar/total?label=downloads&style=flat-square)](https://github.com/PowerT-0704/W3F7-Video-Toolsbar/releases)
@@ -42,13 +42,13 @@
 
 <p align="center"><img src="docs/readme/music-cover.png" width="900" alt="深色音乐工具，显示 Blue Hour 的内嵌封面、播放器和随进度高亮的歌词"></p>
 
-### 语音转录 · v1.3.1
+### 语音转录 · v1.3.2
 
 本地音视频可用必剪免 Key 转录。工作台支持长音频分块、单项和批量任务、编辑与重译字幕、导出 SRT、ASS、VTT、TXT、JSON，以及生成带软字幕或硬字幕的视频。
 
-「任务设置」页底部显示队列和阶段进度，可移除已结束的任务。转录批次成功结束后播放短提示音。「字幕优化与翻译」保留实时预览与编辑，「字幕视频合成」集中设置字幕类型、容器和输出。
+「任务设置」的队列位于输入素材下方，显示阶段进度并可移除已结束的任务。右侧可命名保存处理预设并启动批量。顶部三个视图可点击切换，也可长按滑动。「字幕优化与翻译」保留实时预览与编辑，「字幕视频合成」集中设置字幕类型、容器和输出。
 
-<p align="center"><img src="docs/readme/transcription.png" width="900" alt="语音转录任务设置，显示三个视图、素材和处理双栏、底部批量队列及当前阶段进度"></p>
+<p align="center"><img src="docs/readme/transcription.png" width="900" alt="语音转录任务设置，左栏显示输入素材和任务队列，右栏显示操作预设与处理选项"></p>
 
 ## 快速开始
 

@@ -12,7 +12,11 @@ export type EngineStatus =
   | { kind: 'ready'; tools: ToolStatus; inPath: boolean }
   | { kind: 'missing'; message: string; inPath: boolean }
 
+export function interfaceCopy(message: string) {
+  return message.replace(/。(?=[ \t]*\r?$)/gm, '')
+}
+
 export function errorText(error: unknown) {
   const message = error instanceof Error ? error.message : String(error)
-  return message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '')
+  return interfaceCopy(message.replace(/^Error invoking remote method '[^']+': (Error: )?/, ''))
 }

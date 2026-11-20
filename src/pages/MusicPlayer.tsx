@@ -56,7 +56,7 @@ export function MusicPlayer({ audio, active, lyric, lyricControls }: {
       setError('')
       await element.play()
     } catch (reason) {
-      if (!(reason instanceof DOMException && reason.name === 'AbortError')) setError('无法播放该音频，请重新导入后再试。')
+      if (!(reason instanceof DOMException && reason.name === 'AbortError')) setError('无法播放该音频，请重新导入后再试')
     }
   }
 
@@ -69,7 +69,7 @@ export function MusicPlayer({ audio, active, lyric, lyricControls }: {
         onSeeked={({ currentTarget }) => setTime(currentTarget.currentTime)}
         onPlaying={({ currentTarget }) => { if (!active) currentTarget.pause(); else setPlaying(true) }}
         onPause={() => setPlaying(false)} onEnded={() => setPlaying(false)}
-        onError={() => { setPlaying(false); setError('无法读取音频预览。封面与歌词仍可操作。') }} />
+        onError={() => { setPlaying(false); setError('无法读取音频预览。封面与歌词仍可操作') }} />
       <div className="music-player-panel">
         <Button variant="default" size="icon" className="rounded-full" aria-label={playing ? '暂停音频' : '播放音频'}
           disabled={!duration} onClick={() => void toggle()}>{playing ? <Pause /> : <Play />}</Button>
@@ -110,7 +110,7 @@ export function MusicPlayer({ audio, active, lyric, lyricControls }: {
             aria-current={index === current ? 'true' : undefined}>{row.text || '\u00a0'}</p>)}
         </div> : lyric ? <div ref={lyricView} tabIndex={0} className="music-lyrics-view music-lyrics-plain" aria-label="文本歌词">
           <pre>{lyric}</pre>
-        </div> : <p className="text-muted-foreground text-sm">暂无歌词，可导入 LRC 预览。</p>}
+        </div> : <p className="text-muted-foreground text-sm">暂无歌词，可导入 LRC 预览</p>}
       </div>
     </CardContent>
   </Card>

@@ -193,7 +193,7 @@ function Sidebar({
         >
           <SheetHeader className="sr-only">
             <SheetTitle>工具侧栏</SheetTitle>
-            <SheetDescription>切换工具和应用页面。</SheetDescription>
+            <SheetDescription>切换工具和应用页面</SheetDescription>
           </SheetHeader>
           <div className="flex h-full w-full flex-col">{children}</div>
         </SheetContent>
