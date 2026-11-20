@@ -5,8 +5,10 @@
   margin-inline: auto;
 }
 
+.page-viewport[data-page=transcription] { overflow: hidden; }
 .page-viewport[data-page=transcription] > .page-transition { height: 100%; }
-.caption-page[data-view=jobs] { height: 100%; min-height: 22rem; gap: .85rem; padding-block: 1.35rem .8rem; }
+.caption-page[data-view] { display: flex; height: 100%; min-height: 0; gap: .85rem; padding-block: 1.35rem .8rem; }
+.caption-page[data-view] > .caption-title, .caption-tabs > .caption-feedback { flex: none; }
 
 .caption-tabs { display: flex; flex: 1; flex-direction: column; gap: .85rem; min-height: 0; }
 .caption-tabs-list {
@@ -19,7 +21,7 @@
   border: 1px solid var(--border);
   border-radius: .75rem;
   background: var(--muted);
-  touch-action: pan-y;
+  touch-action: manipulation;
   user-select: none;
 }
 .caption-tab {
@@ -40,50 +42,61 @@
 }
 .caption-tab-selection {
   position: absolute;
-  inset: 0 auto auto 0;
+  left: 0;
   border-radius: .55rem;
   pointer-events: none;
-  --caption-light-edge: #9faeff;
-  --caption-light-halo: #5d6aff80;
+  --caption-light-tail: #a78bfa;
+  --caption-light-middle: #67e8f9;
+  --caption-light-head: #efffff;
+  --caption-light-halo: #67e8f9a6;
 }
-.caption-tabs-list[data-animated=true][data-dragging=false] .caption-tab-selection {
-  transition: transform 245ms cubic-bezier(.2,.76,.26,1), width 245ms cubic-bezier(.2,.76,.26,1), height 160ms ease;
+.caption-tabs-list[data-animated=true] .caption-tab-selection {
+  transition: transform 245ms cubic-bezier(.2,.76,.26,1), width 245ms cubic-bezier(.2,.76,.26,1);
 }
-.caption-tabs-list[data-dragging=true] { cursor: grabbing; }
-.caption-tabs-list[data-dragging=true] .caption-tab { cursor: inherit; }
-.caption-tabs-list[data-dragging=true] .caption-tab-selection {
+.caption-tabs-list[data-animated=false] .caption-tab-selection {
   box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--foreground) 43%, var(--border));
 }
 .caption-tab:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
-:root:not(.dark) .caption-tab-selection { --caption-light-edge: #ffc454; --caption-light-halo: #ffab2980; }
-@property --caption-light-phase {
-  syntax: '<angle>';
-  inherits: false;
-  initial-value: 0deg;
+:root:not(.dark) .caption-tab-selection {
+  --caption-light-tail: #fa7797;
+  --caption-light-middle: #ea6d55;
+  --caption-light-head: #ffaf35;
+  --caption-light-halo: #ed77448f;
 }
 .caption-tab-light {
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  opacity: 0;
-  filter: drop-shadow(0 0 5px var(--caption-light-halo));
-  transition: opacity 240ms ease;
+  filter: drop-shadow(0 0 3px var(--caption-light-halo)) drop-shadow(0 0 7px var(--caption-light-halo));
+  animation: caption-light-fade 540ms ease-out both;
 }
-.caption-tab-light::before {
-  content: "";
+.caption-tab-light-edge {
   position: absolute;
   inset: 0;
-  padding: 1.5px;
+  overflow: hidden;
   border-radius: inherit;
-  background: conic-gradient(from var(--caption-light-phase), transparent 18%, var(--caption-light-halo) 37%, var(--caption-light-edge) 51%, transparent 67%);
+  padding: 2px;
   mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   mask-composite: exclude;
 }
-.caption-tabs-list[data-animated=true][data-glow=true] .caption-tab-light { opacity: 1; }
-.caption-tabs-list[data-animated=true] .caption-tab-light::before { animation: caption-edge-turn 920ms linear infinite; }
-.caption-tabs-list[data-animated=true][data-glow=false] .caption-tab-light::before { animation-play-state: paused; }
-@keyframes caption-edge-turn { to { --caption-light-phase: 360deg; } }
+.caption-tab-light[data-direction=left] .caption-tab-light-edge { transform: scaleX(-1); }
+.caption-tab-light-band {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 62%;
+  background: linear-gradient(90deg, transparent, var(--caption-light-tail) 40%, var(--caption-light-middle) 68%, var(--caption-light-head) 83%, transparent 100%);
+  animation: caption-light-travel 540ms cubic-bezier(.17,.83,.32,1) both;
+}
+@keyframes caption-light-travel {
+  from { transform: translateX(-90%); }
+  to { transform: translateX(109%); }
+}
+@keyframes caption-light-fade {
+  0%, 60% { opacity: 1; }
+  100% { opacity: 0; }
+}
 .caption-pane[data-state=inactive] { display: none; }
+.caption-pane:not(.caption-jobs-pane) { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; padding: 1px 1px .3rem; }
 .caption-jobs-pane { display: flex; flex: 1; flex-direction: column; gap: .8rem; min-height: 0; }
 .caption-job-scroll { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; padding: 1px 1px .3rem; }
 .caption-job-scroll:focus-visible { outline: 1px solid var(--ring); outline-offset: -1px; }
@@ -278,7 +291,8 @@
 .caption-asset-fields { margin-top: .45rem; }
 .caption-queue-card { grid-area: queue; min-width: 0; min-height: 0; gap: .55rem; padding-block: .8rem; }
 .caption-queue-card > [data-slot=card-content] { display: flex; flex: 1; flex-direction: column; min-height: 0; gap: .55rem; }
-.caption-queue-header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: .45rem; }
+.caption-queue-header { display: flex; flex-direction: column; align-items: stretch; gap: .25rem; }
+.caption-queue-heading { display: flex; justify-content: space-between; align-items: center; gap: .45rem; }
 .caption-queue-count { color: var(--muted-foreground); font-size: .75rem; font-variant-numeric: tabular-nums; }
 .caption-queue {
   flex: 1;

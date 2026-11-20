@@ -146,7 +146,7 @@ export interface TranscriptionAPI {
   create: (inputs: CaptionInput[], options: CaptionOptions) => Promise<CaptionTask[]>
   cancel: (id?: string) => Promise<void>
   retry: (id: string) => Promise<void>
-  remove: (id: string) => Promise<void>
+  remove: (target: string | string[]) => Promise<Pick<CaptionTask, 'id' | 'state'>[]>
   edit: (id: string, revision: number, cues: CaptionCue[]) => Promise<CaptionTask>
   translate: (id: string, ids: string[]) => Promise<void>
   finish: (id: string, output: Pick<CaptionOptions, 'container' | 'synthesis' | 'layout'>) => Promise<void>

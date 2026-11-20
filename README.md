@@ -4,7 +4,7 @@
 
 **面向视频与音频工作流的本地工具箱。**
 
-公开下载 **v1.3.1** · 当前源码 **v1.3.2**
+当前正式版 **v1.3.2**
 
 [![正式版](https://img.shields.io/github/v/release/PowerT-0704/W3F7-Video-Toolsbar?label=release&style=flat-square)](https://github.com/PowerT-0704/W3F7-Video-Toolsbar/releases/latest)
 [![Release 附件累计下载](https://img.shields.io/github/downloads/PowerT-0704/W3F7-Video-Toolsbar/total?label=downloads&style=flat-square)](https://github.com/PowerT-0704/W3F7-Video-Toolsbar/releases)
@@ -12,7 +12,7 @@
 [![MIT 许可](https://img.shields.io/badge/license-MIT-805abc?style=flat-square)](LICENSE)
 [![FFmpeg](https://img.shields.io/badge/engine-FFmpeg-4e9a76?style=flat-square)](https://ffmpeg.org/download.html#build-windows)
 
-[📦 Windows x64 安装版](https://github.com/PowerT-0704/W3F7-Video-Toolsbar/releases/download/v1.3.1/W3F7-Video-Toolsbar-1.3.1-Setup-x64.exe) · [便携版 ZIP](https://github.com/PowerT-0704/W3F7-Video-Toolsbar/releases/download/v1.3.1/W3F7-Video-Toolsbar-1.3.1-win-x64.zip) · [发布说明与校验值](https://github.com/PowerT-0704/W3F7-Video-Toolsbar/releases/tag/v1.3.1)
+[📦 Windows x64 安装版](https://github.com/PowerT-0704/W3F7-Video-Toolsbar/releases/download/v1.3.2/W3F7-Video-Toolsbar-1.3.2-Setup-x64.exe) · [便携版 ZIP](https://github.com/PowerT-0704/W3F7-Video-Toolsbar/releases/download/v1.3.2/W3F7-Video-Toolsbar-1.3.2-win-x64.zip) · [单文件 BAT](https://github.com/PowerT-0704/W3F7-Video-Toolsbar/releases/download/v1.3.2/W3F7-Video-Cover.bat) · [SHA-256 校验清单](https://github.com/PowerT-0704/W3F7-Video-Toolsbar/releases/download/v1.3.2/SHA256SUMS-v1.3.2.txt) · [发布说明](https://github.com/PowerT-0704/W3F7-Video-Toolsbar/releases/tag/v1.3.2)
 
 [界面预览](#界面预览) · [功能展示](#功能展示) · [快速开始](#快速开始) · [开发路线图](ROADMAP.md) · [历史验收记录](docs/verification.md)
 
@@ -20,7 +20,7 @@
 
 ## 界面预览
 
-<p align="center"><img src="docs/readme/home.png" width="900" alt="W3F7のVideo_Toolsbar v1.2.3 深色首页，显示视频封面封装和音乐封面解析入口"></p>
+<p align="center"><img src="docs/readme/home.png" width="900" alt="W3F7のVideo_Toolsbar v1.3.2 深色首页，显示视频封面封装、音乐封面解析和语音转录入口"></p>
 
 ### 🌗 深浅主题
 
@@ -46,9 +46,11 @@
 
 本地音视频可用必剪免 Key 转录。工作台支持长音频分块、单项和批量任务、编辑与重译字幕、导出 SRT、ASS、VTT、TXT、JSON，以及生成带软字幕或硬字幕的视频。
 
-「任务设置」的队列位于输入素材下方，显示阶段进度并可移除已结束的任务。右侧可命名保存处理预设并启动批量。顶部三个视图可点击切换，也可长按滑动。「字幕优化与翻译」保留实时预览与编辑，「字幕视频合成」集中设置字幕类型、容器和输出。
+「任务设置」左列显示输入素材和任务队列，右列可命名保存或调用操作预设，并从「处理与输出」底部启动单项或批量任务。队列显示阶段进度，支持重试、删除单项或清空列表。确认删除后，应用先停止涉及的任务，已导出文件会保留。
 
-<p align="center"><img src="docs/readme/transcription.png" width="900" alt="语音转录任务设置，左栏显示输入素材和任务队列，右栏显示操作预设与处理选项"></p>
+点击顶部三个视图时，滑块沿固定轨道切换，渐变流光顺着切换方向减速淡出。「字幕优化与翻译」保留预览和校对草稿，「字幕视频合成」集中设置字幕类型、容器和输出。
+
+<p align="center"><img src="docs/readme/transcription.png" width="900" alt="v1.3.2 语音转录任务设置，左栏显示素材、任务进度和清空列表入口，右栏显示操作预设与处理选项"></p>
 
 ## 快速开始
 
@@ -90,7 +92,7 @@
 ### 语音转录
 
 1. 打开「语音转录」，选取或拖入音视频和已有字幕。视频如有多条音轨，可在素材卡切换。默认使用必剪和规则断句，开始前可查看联网阶段会发送的内容。
-2. 在「处理与输出」选择仅转录、处理已有字幕、转录并处理字幕、全流程或仅合成。由页底队列启动处理，可单项取消、重试或移除已结束的任务。
+2. 在「处理与输出」选择仅转录、处理已有字幕、转录并处理字幕、全流程或仅合成。常用设置可保存为命名预设，选好后从右侧底部启动任务。左侧队列可取消、重试、删除单项或清空列表。
 3. 在「字幕优化与翻译」中点行号定位预览，修改原文、译文或时间，或合并连续行后保存并导出。选用翻译服务时可对失败行重译。
 4. 在「字幕视频合成」选择字幕类型、容器及布局后生成视频。任务输出目录未选择时，使用应用默认目录或源文件所在目录。
 5. 如需语义断句、校正或大模型翻译，进入「More → 模型与 API」，默认模型是 `deepseek-flash`。填入自己的 Key，保存并测试连接。使用本地 Whisper 时，先自行准备兼容的 Windows 程序和模型，再在「本地 Whisper」选路径并检查程序。

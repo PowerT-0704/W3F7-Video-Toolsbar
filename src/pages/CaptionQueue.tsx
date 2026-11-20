@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { ChevronRight, Play, Square, Trash2 } from 'lucide-react'
 import { motion } from 'motion/react'
+import { AlertDialog } from 'radix-ui'
 import type { CaptionStage, CaptionTask } from '../transcription'
 import { useMotionEnabled } from '../ui/motion-policy'
 import { Button } from '../ui/shadcn/button'
@@ -12,7 +13,6 @@ export const captionStateNames: Record<CaptionTask['state'], string> = {
   queued: '排队中', running: '处理中', review: '待校对', done: '已完成', warning: '待复核', failed: '失败', cancelled: '已取消',
 }
 export const captionWorking = (task?: CaptionTask) => task?.state === 'queued' || task?.state === 'running'
-const canRemove = (task: CaptionTask) => !captionWorking(task) && task.state !== 'review'
 
 const stages: Record<CaptionStage, string> = {
   prepare: '准备素材', recognize: '识别语音', split: '字幕断句', correct: '校正字幕', translate: '翻译字幕',
@@ -68,38 +68,90 @@ function QueueProgress({ task, total, ended, completed, active, submitting }: {
   </div>
 }
 
-export function CaptionQueue({ tasks, selected, dirty, busy, active, progress, total, ended, completed, submitting,
+export function CaptionQueue({ tasks, selected, dirty, busy, active, progress, total, ended, completed, submitting, removing,
   onSelect, onRemove, onCancelAll, onReview, onSynthesis, children }: {
   tasks: CaptionTask[]; selected?: CaptionTask; dirty: boolean; busy: boolean; active: boolean; progress?: CaptionTask
-  total: number; ended: number; completed: boolean; submitting: boolean
-  onSelect: (id: string) => void; onRemove: (id: string) => void; onCancelAll: () => void
+  total: number; ended: number; completed: boolean; submitting: boolean; removing: boolean
+  onSelect: (id: string) => void; onRemove: (ids: string[], clear: boolean) => void; onCancelAll: () => void
   onReview: () => void; onSynthesis: () => void; children?: React.ReactNode
 }) {
-  return <Card className="caption-queue-card" aria-label="任务队列">
+  const [confirmation, setConfirmation] = useState<{ ids: string[]; clear: boolean; name?: string; stopping: number; losesDraft: boolean }>()
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const opener = useRef<HTMLButtonElement>(null)
+  const queue = useRef<HTMLDivElement>(null)
+  const animated = useMotionEnabled()
+  function confirm(button: HTMLButtonElement, id?: string) {
+    const targets = id ? tasks.filter((item) => item.id === id) : tasks
+    if (!targets.length) return
+    opener.current = button
+    setConfirmation({
+      ids: targets.map((item) => item.id), clear: !id, name: targets[0]?.name,
+      stopping: targets.filter(captionWorking).length,
+      losesDraft: dirty && targets.some((item) => item.id === selected?.id),
+    })
+    setDialogOpen(true)
+  }
+
+  return <Card ref={queue} tabIndex={-1} className="caption-queue-card" aria-label="任务队列">
     <CardHeader className="caption-queue-header">
-      <CardTitle><Play />任务队列 <span className="caption-queue-count">{tasks.length}</span></CardTitle>
-      <div className="caption-actions">
+      <div className="caption-queue-heading">
+        <CardTitle><Play />任务队列 <span className="caption-queue-count">{tasks.length}</span></CardTitle>
+        <Button size="sm" variant="ghost" disabled={removing || submitting || !tasks.length}
+          onClick={(event) => confirm(event.currentTarget)}><Trash2 />清空列表</Button>
+      </div>
+      {(selected || busy) && <div className="caption-actions">
         {selected && <>
           {children}
-          <Button size="sm" variant="ghost" disabled={!selected.cues.length} onClick={onReview}>打开校对</Button>
-          <Button size="sm" variant="ghost" disabled={!selected.media?.video || !selected.cues.length} onClick={onSynthesis}>打开合成</Button>
+          <Button size="sm" variant="ghost" disabled={removing || !selected.cues.length} onClick={onReview}>打开校对</Button>
+          <Button size="sm" variant="ghost" disabled={removing || !selected.media?.video || !selected.cues.length} onClick={onSynthesis}>打开合成</Button>
         </>}
-        {busy && <Button size="sm" variant="outline" onClick={onCancelAll}><Square />取消全部</Button>}
-      </div>
+        {busy && <Button size="sm" variant="outline" disabled={removing} onClick={onCancelAll}><Square />取消全部</Button>}
+      </div>}
     </CardHeader>
     <CardContent className="caption-stack">
       {tasks.length ? <ul className="caption-queue">
         {tasks.map((item) => <li key={item.id}>
-          <button type="button" className="caption-queue-select" disabled={dirty && item.id !== selected?.id}
+          <button type="button" className="caption-queue-select" disabled={removing || dirty && item.id !== selected?.id}
             onClick={() => onSelect(item.id)} aria-pressed={selected?.id === item.id}>
             <span><strong title={item.name}>{item.name}</strong><small title={interfaceCopy(item.message)}>{captionStateNames[item.state]}{captionWorking(item) ? ' · ' + interfaceCopy(item.message) : ''}</small></span>
             <ChevronRight size={16} />
           </button>
-          {canRemove(item) && <Button size="icon-sm" variant="ghost" disabled={dirty && item.id === selected?.id}
-            aria-label={'移除任务 ' + item.name} title="移除任务记录" onClick={() => onRemove(item.id)}><Trash2 /></Button>}
+          <Button size="icon-sm" variant="ghost" disabled={removing || submitting}
+            aria-label={'删除任务 ' + item.name} title="删除任务记录" onClick={(event) => confirm(event.currentTarget, item.id)}><Trash2 /></Button>
         </li>)}
       </ul> : <p className="caption-muted">导入素材并开始处理后，任务会显示在这里</p>}
+      {removing && <p className="caption-muted" role="status">正在删除任务…</p>}
       {(total > 0 || progress || submitting) && <QueueProgress task={progress} total={total} ended={ended} completed={completed} active={active} submitting={submitting} />}
     </CardContent>
+    <AlertDialog.Root open={dialogOpen} onOpenChange={setDialogOpen}>
+      <AlertDialog.Portal>
+        <AlertDialog.Overlay className="qr-overlay" data-reduced={!animated} />
+        <AlertDialog.Content className="qr-dialog" data-reduced={!animated} onCloseAutoFocus={(event) => {
+          event.preventDefault()
+          const button = opener.current
+          const focusTarget = button?.isConnected && !button.disabled ? button : queue.current
+          focusTarget?.focus({ preventScroll: true })
+        }}>
+          <AlertDialog.Title className="font-semibold">{confirmation?.clear ? '清空任务列表？' : '删除任务？'}</AlertDialog.Title>
+          <AlertDialog.Description asChild>
+            <div className="grid gap-2 text-muted-foreground text-sm break-words">
+              <p>{confirmation?.clear ? `将删除列表中的 ${confirmation.ids.length} 项任务记录` : confirmation?.name}</p>
+              {!!confirmation?.stopping && <p>{confirmation.stopping} 项运行中或排队任务会先停止，再移出列表</p>}
+              {confirmation?.losesDraft && <p className="text-destructive">未保存的校对草稿将丢失</p>}
+              <p>源文件和已导出的成品会保留</p>
+            </div>
+          </AlertDialog.Description>
+          <div className="flex justify-end gap-2">
+            <AlertDialog.Cancel asChild><Button variant="outline">取消</Button></AlertDialog.Cancel>
+            <AlertDialog.Action asChild><Button variant="destructive" disabled={removing || submitting || !confirmation}
+              onClick={() => {
+                if (!confirmation) return
+                opener.current = null
+                onRemove(confirmation.ids, confirmation.clear)
+              }}>{confirmation?.clear ? '确认清空' : '确认删除'}</Button></AlertDialog.Action>
+          </div>
+        </AlertDialog.Content>
+      </AlertDialog.Portal>
+    </AlertDialog.Root>
   </Card>
 }

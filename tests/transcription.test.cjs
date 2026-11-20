@@ -382,11 +382,9 @@ test('workspace supports multi-track import, batch, review, edit, VTT and soft a
   const [job, original] = await workspace.create([
     { media: video.id, track: 2 }, { subtitle: subtitle.id, track: -1, mode: 'subtitles' },
   ], defaults({ review: true, split: 'original', formats: ['srt', 'vtt', 'json'] }))
-  assert.throws(() => workspace.remove(job.id), /只能移除已结束/)
   const review = await settled(workspace, job.id, ['review', 'failed'])
   assert.equal(review.state, 'review', review.message)
   assert.equal(review.cues[0].text, 'This is test speech')
-  assert.throws(() => workspace.remove(review.id), /只能移除已结束/)
   workspace.edit(review.id, review.revision, review.cues.map((line) => ({ ...line, text: '已校对' })))
   await settled(workspace, original.id, ['done'])
   workspace.finish(review.id, { container: 'mp4', synthesis: 'soft', layout: 'source-first' })
@@ -414,7 +412,7 @@ test('workspace supports multi-track import, batch, review, edit, VTT and soft a
   assert.ok((await workspace.cacheStatus()).activeBytes > 0)
   await workspace.clearCache()
   assert.ok((await readFile(preview)).length > 0)
-  workspace.remove(job.id)
+  assert.deepEqual(await workspace.remove(job.id), [{ id: job.id, state: 'done' }])
   assert.deepEqual(removed, [job.id])
   assert.deepEqual(workspace.tasks().map((item) => item.id), [original.id])
   assert.ok(hard.outputs.every((item) => workspace.locate(item.id) === undefined))
@@ -422,6 +420,62 @@ test('workspace supports multi-track import, batch, review, edit, VTT and soft a
   await workspace.clearCache()
   assert.equal(workspace.mediaSource(video.id, true), undefined)
   await assert.rejects(readFile(preview), { code: 'ENOENT' })
+})
+
+test('queue deletion stops only targeted jobs, waits for active cleanup and keeps files', async (t) => {
+  const dir = await folder(t)
+  const source = join(dir, 'video.mp4')
+  const sub = join(dir, 'source.srt')
+  makeVideo(source)
+  const original = '1\n00:00:00,100 --> 00:00:01,500\n保留这段字幕。\n'
+  await writeFile(sub, original)
+  let requestStarted, requestAborted, finishRequest
+  const started = new Promise((resolve) => { requestStarted = resolve })
+  const aborted = new Promise((resolve) => { requestAborted = resolve })
+  const cleanup = new Promise((resolve) => { finishRequest = resolve })
+  const notices = []
+  const workspace = new TranscriptionWorkspace({
+    dataDirectory: dir, settings: { credentials: async () => credentials() }, tools: async () => tools,
+    outputDirectory: () => dir, authorize: () => {}, notify: () => {}, notifyRemoved: (id) => notices.push(id),
+    render: async () => assert.fail('unexpected render'),
+    request: async (_address, init) => {
+      requestStarted()
+      try { await wait(15_000, null, { signal: init.signal }) }
+      catch (reason) { requestAborted(); await cleanup; throw reason }
+      throw new Error('fixture request was not cancelled')
+    },
+  })
+  t.after(() => { finishRequest(); return workspace.dispose() })
+  const { assets: [video, subtitle] } = await workspace.importPaths([source, sub])
+  const subtitleInput = { subtitle: subtitle.id, track: -1, mode: 'subtitles' }
+  const [running, queued, remaining] = await workspace.create([
+    { media: video.id, track: 1, mode: 'transcribe' }, subtitleInput, subtitleInput,
+  ], defaults({ split: 'original' }))
+  await started
+  let deletion
+  try {
+    assert.deepEqual(await workspace.remove(queued.id), [{ id: queued.id, state: 'cancelled' }])
+    assert.equal(workspace.tasks()[0].state, 'running')
+    deletion = workspace.remove(running.id)
+    await aborted
+    assert.equal(workspace.tasks().some((item) => item.id === running.id), true)
+    assert.throws(() => workspace.retry(running.id), /任务正在删除/)
+    assert.deepEqual(await workspace.remove(running.id), [])
+  } finally { finishRequest() }
+  assert.deepEqual(await deletion, [{ id: running.id, state: 'cancelled' }])
+  const done = await settled(workspace, remaining.id, ['done', 'failed'])
+  assert.equal(done.state, 'done', done.message)
+  const exported = workspace.locate(done.outputs[0].id)
+  const [ready] = await workspace.create([{ media: video.id, subtitle: subtitle.id, track: -1 }], defaults({ review: true }))
+  assert.equal((await settled(workspace, ready.id, ['review', 'failed'])).state, 'review')
+  assert.deepEqual(await workspace.remove([ready.id, remaining.id, ready.id]), [
+    { id: ready.id, state: 'review' }, { id: remaining.id, state: 'done' },
+  ])
+  assert.deepEqual(workspace.tasks(), [])
+  assert.deepEqual(notices, [queued.id, running.id, ready.id, remaining.id])
+  assert.equal(await readFile(sub, 'utf8'), original)
+  assert.match(await readFile(exported, 'utf8'), /保留这段字幕。/)
+  assert.ok((await readFile(source)).length > 0)
 })
 
 test('caption cache preserves active previews, remembers prior folders and confines cleanup to owned entries', async (t) => {

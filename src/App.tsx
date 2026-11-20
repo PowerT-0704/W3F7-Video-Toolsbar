@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { CSSProperties, MouseEvent } from 'react'
 import { AudioLines, Clapperboard, Cpu, FileMusic, History, House, Info, Network, Settings2 } from 'lucide-react'
 import { LayoutGroup, motion } from 'motion/react'
@@ -11,7 +11,6 @@ import { HomePage, Startup } from './pages/HomePage'
 import { MusicPage } from './pages/MusicPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { CaptionEnginesPage, CaptionSettingsPage } from './pages/CaptionSettingsPage'
-import { TranscriptionPage } from './pages/TranscriptionPage'
 import { StartupNotice } from './pages/StartupNotice'
 import { useHoverSidebar } from './ui/hover-sidebar'
 import { MotionEnabledContext, useMotionEnabled, useSystemReducedMotion } from './ui/motion-policy'
@@ -20,6 +19,7 @@ import {
   SidebarMenuItem, SidebarProvider, SidebarSeparator, SidebarTrigger, useSidebar,
 } from './ui/shadcn/sidebar'
 
+const TranscriptionPage = lazy(() => import('./pages/TranscriptionPage').then((module) => ({ default: module.TranscriptionPage })))
 const defaultPreferences: Preferences = { toolDirectory: '', outputDirectory: '', cacheDirectory: '', reduceMotion: false, theme: initialTheme, welcomeSeen: false }
 const pages = {
   home: { label: '起始页', icon: House },
@@ -63,6 +63,7 @@ function NavigationItem({ page, current, onNavigate }: { page: Page; current: Pa
 export function App() {
   const [navigation, setNavigation] = useState<Navigation>({ page: 'home' })
   const { page } = navigation
+  const [transcriptionVisited, setTranscriptionVisited] = useState(false)
   const [preferences, setPreferences] = useState(defaultPreferences)
   const [preferencesLoaded, setPreferencesLoaded] = useState(false)
   const [startupFinished, setStartupFinished] = useState(false)
@@ -100,6 +101,7 @@ export function App() {
 
   function navigate(next: Page) {
     if (next === page) return
+    if (next === 'transcription') setTranscriptionVisited(true)
     movePageFocus.current = sidebar.mobile || Boolean(main.current?.contains(document.activeElement))
     const surface = main.current?.querySelector('[data-page-state="active"] > .page-transition')
     if (reduced || !surface) {
@@ -228,8 +230,10 @@ export function App() {
       onChooseOutput={async () => { setPreferences(await api.chooseDirectory('outputDirectory')) }}
       onOpenSettings={() => navigate('settings')} onRetry={() => void detect()} />,
     music: <MusicPage active={page === 'music'} engine={engine} onOpenSettings={() => navigate('settings')} onRetry={() => void detect()} />,
-    transcription: <TranscriptionPage active={page === 'transcription'} engine={engine}
-      onConfigure={() => navigate('models')} onSettings={() => navigate('settings')} />,
+    transcription: <Suspense fallback={<div className="page-layout" role="status">正在载入语音转录</div>}>
+      <TranscriptionPage active={page === 'transcription'} engine={engine}
+        onConfigure={() => navigate('models')} onSettings={() => navigate('settings')} />
+    </Suspense>,
     changelog: <ChangelogPage />,
     engines: <CaptionEnginesPage engine={engine} onConfigure={() => navigate('models')} onRetry={() => void detect()} />,
     models: <CaptionSettingsPage />,
@@ -295,7 +299,8 @@ export function App() {
             <div className="workspace-container">
               {(Object.keys(views) as Page[]).map((id) => {
                 const phase = id === page ? 'active' : id === outgoing?.page ? 'exiting' : 'idle'
-                if (phase === 'idle' && id !== 'cover' && id !== 'music' && id !== 'transcription') return null
+                const keepMounted = id === 'cover' || id === 'music' || id === 'transcription' && transcriptionVisited
+                if (phase === 'idle' && !keepMounted) return null
                 return (
                   <div key={id} className="page-viewport" data-page={id} data-page-state={phase}
                     hidden={phase === 'idle'} inert={phase !== 'active'} tabIndex={-1}>

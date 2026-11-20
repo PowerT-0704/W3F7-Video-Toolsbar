@@ -157,6 +157,8 @@ export class TranscriptionWorkspace {
   private paths = new Map<string, string>()
   private queue: Job[] = []
   private active?: Job
+  private activeSettled?: () => void
+  private removing = new Set<string>()
   private pump?: Promise<void>
   private previewAbort = new AbortController()
   private cacheOperation?: Promise<unknown>
@@ -345,10 +347,12 @@ export class TranscriptionWorkspace {
   private job(id: string) {
     const job = this.jobs.get(id)
     if (!job) throw new Error('找不到字幕任务。')
+    if (this.removing.has(id)) throw new Error('任务正在删除。')
     return job
   }
 
   private publish(job: Job, force = true) {
+    if (this.removing.has(job.task.id)) return
     if (!force && Date.now() - job.lastNotice < 220) return
     job.lastNotice = Date.now()
     this.context.notify(job.task)
@@ -459,6 +463,8 @@ export class TranscriptionWorkspace {
       } finally {
         this.active = undefined
         job.controller = undefined
+        this.activeSettled?.()
+        this.activeSettled = undefined
         this.publish(job)
       }
     }
@@ -725,15 +731,20 @@ export class TranscriptionWorkspace {
     this.publish(job)
   }
 
-  async cancel(id?: string) {
-    if (id !== undefined) this.job(id)
-    for (const job of this.queue.filter(({ task }) => id === undefined || task.id === id)) {
-      this.queue = this.queue.filter((item) => item !== job)
+  private stopJobs(matches: (job: Job) => boolean) {
+    const queued = this.queue.filter(matches)
+    this.queue = this.queue.filter((job) => !matches(job))
+    for (const job of queued) {
       job.task.state = 'cancelled'
       job.task.message = '已取消'
       this.publish(job)
     }
-    if (this.active && (id === undefined || id === this.active.task.id)) this.active.controller?.abort()
+    if (this.active && matches(this.active)) this.active.controller?.abort()
+  }
+
+  async cancel(id?: string) {
+    if (id !== undefined) this.job(id)
+    this.stopJobs(({ task }) => id === undefined || task.id === id)
   }
 
   retry(id: string) {
@@ -743,14 +754,33 @@ export class TranscriptionWorkspace {
     this.enqueue(job, job.action)
   }
 
-  remove(id: string) {
-    const job = this.job(id)
-    if (!terminals.has(job.task.state) || this.active === job || this.queue.includes(job)) {
-      throw new Error('只能移除已结束的任务。')
+  async remove(target: string | string[]): Promise<Pick<CaptionTask, 'id' | 'state'>[]> {
+    const ids = typeof target === 'string' ? [target] : target
+    if (!Array.isArray(ids) || ids.length > 500 || ids.some((id) => typeof id !== 'string')) {
+      throw new Error('要删除的任务列表无效。')
     }
-    this.jobs.delete(id)
-    for (const output of job.task.outputs) this.paths.delete(output.id)
-    this.context.notifyRemoved?.(id)
+    const jobs = [...new Set(ids)].flatMap((id) => {
+      const job = this.jobs.get(id)
+      return job && !this.removing.has(id) ? [job] : []
+    })
+    const pending = jobs.map(({ task }) => ({ id: task.id, state: busy.has(task.state) ? 'cancelled' as const : task.state }))
+    const selected = new Set(jobs)
+    const settled = this.active && selected.has(this.active)
+      ? new Promise<void>((resolve) => { this.activeSettled = resolve })
+      : undefined
+    for (const { id } of pending) this.removing.add(id)
+    try {
+      this.stopJobs((job) => selected.has(job))
+      await settled
+      for (const { task } of jobs) {
+        this.jobs.delete(task.id)
+        for (const output of task.outputs) this.paths.delete(output.id)
+        this.context.notifyRemoved?.(task.id)
+      }
+      return pending
+    } finally {
+      for (const { id } of pending) this.removing.delete(id)
+    }
   }
 
   edit(id: string, revision: number, raw: unknown) {

@@ -347,6 +347,7 @@ export function TranscriptionPage({ active, engine, onConfigure, onSettings }: {
   const [dirty, setDirty] = useState(false)
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [removing, setRemoving] = useState(false)
   const [dragging, setDragging] = useState(false)
   const [endpoints, setEndpoints] = useState({ llm: 'api.deepseek.com', whisper: 'api.openai.com', deeplx: '' })
   const depth = useRef(0)
@@ -390,7 +391,7 @@ export function TranscriptionPage({ active, engine, onConfigure, onSettings }: {
   const progressTask = tasks.find((item) => item.state === 'running') ?? tasks.find((item) => item.state === 'queued')
   const batchItems = batch?.ids.map((id) => tasks.find((item) => item.id === id) ?? { state: removed.current.get(id) }) ?? []
   const ended = batchItems.filter((item) => item.state && item.state !== 'queued' && item.state !== 'running').length
-  const completed = !submitting && !progressTask && batchItems.length > 0 && batchItems.every((item) =>
+  const completed = !submitting && !removing && !progressTask && batchItems.length > 0 && batchItems.every((item) =>
     item.state === 'done' || item.state === 'review' || item.state === 'warning' && (!('cues' in item) || item.cues.length > 0 || item.outputs.length > 0))
 
   useEffect(() => {
@@ -487,16 +488,22 @@ export function TranscriptionPage({ active, engine, onConfigure, onSettings }: {
     }).finally(() => setSubmitting(false))
   }
 
-  function removeTask(id: string) {
+  function removeTasks(ids: string[], clear: boolean) {
+    setRemoving(true)
     void action(async () => {
-      const index = tasks.findIndex((item) => item.id === id)
-      if (index < 0) return
-      await captionApi.remove(id)
-      removed.current.set(id, tasks[index].state)
-      setTasks((items) => items.filter((item) => item.id !== id))
-      setTaskId((selected) => selected === id || !selected && task?.id === id
-        ? tasks[index + 1]?.id ?? tasks[index - 1]?.id ?? '' : selected)
-    })
+      const records = await captionApi.remove(ids)
+      const deleted = new Set(records.map(({ id }) => id))
+      for (const { id, state } of records) removed.current.set(id, state)
+      setTasks((items) => items.filter((item) => !deleted.has(item.id)))
+      if (task && deleted.has(task.id)) {
+        const index = tasks.findIndex((item) => item.id === task.id)
+        const after = tasks.slice(index + 1).find((item) => !deleted.has(item.id))
+        const before = tasks.slice(0, index).findLast((item) => !deleted.has(item.id))
+        setTaskId(after?.id ?? before?.id ?? '')
+        setDirty(false)
+      }
+      if (clear || tasks.every((item) => deleted.has(item.id))) setBatch(undefined)
+    }).finally(() => setRemoving(false))
   }
 
   function replaceTask(next: CaptionTask) {
@@ -505,19 +512,19 @@ export function TranscriptionPage({ active, engine, onConfigure, onSettings }: {
   }
 
   const taskControls = task && <>
-    {waiting(task) && <Button variant="outline" size="sm" onClick={() => void action(() => captionApi.cancel(task.id))}>取消任务</Button>}
+    {waiting(task) && <Button variant="outline" size="sm" disabled={removing} onClick={() => void action(() => captionApi.cancel(task.id))}>取消任务</Button>}
     {(task.state === 'failed' || task.state === 'cancelled') &&
-      <Button variant="outline" size="sm" onClick={() => void action(() => captionApi.retry(task.id))}>重试任务</Button>}
+      <Button variant="outline" size="sm" disabled={removing} onClick={() => void action(() => captionApi.retry(task.id))}>重试任务</Button>}
   </>
   const taskPicker = tasks.length > 0 && <div className="caption-task-picker">
-    <CaptionSelect label="当前任务" value={task?.id ?? ''} disabled={dirty} onChange={setTaskId}
+    <CaptionSelect label="当前任务" value={task?.id ?? ''} disabled={dirty || removing} onChange={setTaskId}
       choices={tasks.map((item) => [item.id, `${item.name} · ${stateNames[item.state]}`])} />
   </div>
   const taskStatus = task && <>
     <div className="caption-task-status" aria-live="polite"><span>{stateNames[task.state]} · {interfaceCopy(task.message)}</span>{taskControls}</div>
     {!!task.warnings.length && <ul className="caption-warnings">{task.warnings.map((warning, index) => <li key={index}>{interfaceCopy(warning)}</li>)}</ul>}
   </>
-  const runTaskAction = (run: () => Promise<void>) => void action(run)
+  const runTaskAction = (run: () => Promise<void>) => { if (!removing) void action(run) }
 
   return <section className="page-layout caption-page" data-view={view}
     onDrop={(event) => { if (view === 'jobs') drop(event) }} onDragOver={(event) => event.preventDefault()}
@@ -531,10 +538,10 @@ export function TranscriptionPage({ active, engine, onConfigure, onSettings }: {
       <div><h1>语音转录</h1><p>从本地音视频生成字幕，校对后导出或合成</p></div>
       <Button variant="outline" onClick={onConfigure}>模型与 API</Button>
     </header>
-    {error && <p className="caption-feedback text-destructive" role="alert">{error}</p>}
-    {engine.kind === 'missing' && <div className="caption-feedback"><span>{engine.message}</span>
-      <Button variant="outline" size="sm" onClick={onSettings}>设置 FFmpeg</Button></div>}
     <CaptionTabs value={view} onChange={setView} active={active} animated={animated}>
+      {error && <p className="caption-feedback text-destructive" role="alert">{error}</p>}
+      {engine.kind === 'missing' && <div className="caption-feedback"><span>{engine.message}</span>
+        <Button variant="outline" size="sm" onClick={onSettings}>设置 FFmpeg</Button></div>}
       <Tabs.Content value="jobs" forceMount className="caption-pane caption-jobs-pane">
         <div className="caption-job-scroll" tabIndex={0} aria-label="输入素材和处理设置">
           <div className="caption-workbench">
@@ -634,13 +641,13 @@ export function TranscriptionPage({ active, engine, onConfigure, onSettings }: {
           </ul>}
         </CardContent>
         <CardFooter className="caption-processing-footer">
-          <ActionButton size="sm" disabled={dirty || submitting || !inputs.length || engine.kind === 'missing' && workflowNeedsMedia(options.mode)}
+          <ActionButton size="sm" disabled={dirty || submitting || removing || !inputs.length || engine.kind === 'missing' && workflowNeedsMedia(options.mode)}
             onClick={submit} shimmer="ready"><Play />{inputs.length > 1 ? '添加 ' + inputs.length + ' 项任务' : '开始处理'}</ActionButton>
         </CardFooter>
       </Card>
       <CaptionQueue tasks={tasks} selected={task} dirty={dirty} busy={running > 0} active={active && view === 'jobs'}
-        progress={progressTask} total={batchItems.length || running} ended={ended} completed={completed} submitting={submitting}
-        onSelect={setTaskId} onRemove={removeTask} onReview={() => setView('polish')} onSynthesis={() => setView('synthesis')}
+        progress={progressTask} total={batchItems.length || running} ended={ended} completed={completed} submitting={submitting} removing={removing}
+        onSelect={setTaskId} onRemove={removeTasks} onReview={() => setView('polish')} onSynthesis={() => setView('synthesis')}
         onCancelAll={() => void action(() => captionApi.cancel())}>{taskControls}</CaptionQueue>
           </div>
         </div>

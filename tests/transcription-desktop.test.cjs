@@ -23,9 +23,13 @@ async function until(check, label, timeout = 16_000) {
 
 function session(ws) {
   const pending = new Map()
+  const transcriptionScripts = new Set()
   let next = 0
   ws.addEventListener('message', ({ data }) => {
     const message = JSON.parse(data)
+    if (message.method === 'Debugger.scriptParsed' && /\/assets\/TranscriptionPage-.*\.js$/.test(message.params.url)) {
+      transcriptionScripts.add(message.params.scriptId)
+    }
     const request = pending.get(message.id)
     if (!request) return
     pending.delete(message.id)
@@ -47,7 +51,7 @@ function session(ws) {
     if (answer.exceptionDetails) throw new Error(answer.exceptionDetails.exception?.description || answer.exceptionDetails.text)
     return answer.result.value
   }
-  return { call, run }
+  return { call, run, transcriptionScripts }
 }
 
 const ffmpeg = (...args) => execFileSync('ffmpeg', ['-hide_banner', '-nostdin', '-loglevel', 'error', '-y', ...args], { windowsHide: true })
@@ -70,11 +74,12 @@ test('isolated Electron opens the subtitle workflow and saves a Canvas subtitle 
   let child
   let socket
   let recognitionRequests = 0
+  let recognitionDelay = 900
   const server = createServer(async (request, response) => {
     if (request.url === '/audio/transcriptions') {
       for await (const _ of request) { /* Consume only the generated fixture audio. */ }
       recognitionRequests++
-      await wait(900)
+      await wait(recognitionDelay)
       response.writeHead(200, { 'Content-Type': 'application/json' })
       response.end(JSON.stringify({ segments: [{ start: .15, end: 3.5, text: 'This is a synthetic test for the subtitle workspace.' }] }))
       return
@@ -134,9 +139,10 @@ test('isolated Electron opens the subtitle workflow and saves a Canvas subtitle 
     await once(socket, 'open')
     const connected = session(socket)
     await connected.call('Runtime.enable')
+    await connected.call('Debugger.enable')
     return connected
   }
-  let { call, run } = await openDesktop()
+  let { call, run, transcriptionScripts } = await openDesktop()
   const screenshot = async (name) => {
     if (!env.W3F7_CAPTION_SCREENSHOTS) return
     const { data } = await call('Page.captureScreenshot', { format: 'png' })
@@ -147,10 +153,6 @@ test('isolated Electron opens the subtitle workflow and saves a Canvas subtitle 
   const click = (label) => run((selector, text) => {
     const button = [...document.querySelectorAll(selector + ' button')].find((item) => item.textContent.trim() === text && !item.disabled && item.getClientRects().length)
     if (!button) return false
-    if (button.getAttribute('role') === 'tab') {
-      button.dispatchEvent(new MouseEvent('mousedown', { button: 0, bubbles: true }))
-      button.focus()
-    }
     button.click()
     return true
   }, active, label)
@@ -161,6 +163,8 @@ test('isolated Electron opens the subtitle workflow and saves a Canvas subtitle 
     return true
   }, name)
   const page = (name) => run((selector, target) => document.querySelector(selector)?.dataset.page === target, active, name)
+  const queueTasks = () => run(() => window.videoTools.transcription.tasks())
+  const queueDialog = () => run(() => document.querySelector('[role="alertdialog"]')?.textContent)
   const closeSidebar = () => run((selector) => document.querySelector(selector + ' .page-layout')?.click(), active)
   const pinned = () => run(() => document.querySelector('button[aria-label="切换侧栏"]')?.getAttribute('aria-pressed') === 'true')
   const setPinned = async (next) => {
@@ -169,11 +173,16 @@ test('isolated Electron opens the subtitle workflow and saves a Canvas subtitle 
     await until(async () => await pinned() === next, '切换固定侧栏')
   }
   const clickDialog = (label) => run((text) => {
-    const button = [...document.querySelectorAll('[role="dialog"] button')].find((item) => item.textContent === text && !item.disabled)
+    const button = [...document.querySelectorAll('[role="dialog"] button, [role="alertdialog"] button')].find((item) => item.textContent === text && !item.disabled)
     if (!button) return false
     button.click()
     return true
   }, label)
+  async function dismissSystemMotionNotice() {
+    if (!await run(() => matchMedia('(prefers-reduced-motion: reduce)').matches)) return
+    await until(() => clickDialog('知道了'), '关闭系统减少动效提示')
+    await until(() => run(() => !document.querySelector('.startup-dialog')), '启动提示已关闭')
+  }
   const presetName = (name) => run((value) => {
     const input = document.querySelector('[role="dialog"] input')
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, value)
@@ -192,15 +201,24 @@ test('isolated Electron opens the subtitle workflow and saves a Canvas subtitle 
     const rect = document.querySelector('[data-view-tab="' + name + '"]').getBoundingClientRect()
     return { x: Math.round(rect.left + rect.width / 2), y: Math.round(rect.top + rect.height / 2) }
   }, view)
+  const tabHeights = () => run(() => {
+    const bounds = (selector) => {
+      const { top, height } = document.querySelector(selector).getBoundingClientRect()
+      return { top, height }
+    }
+    return { rail: bounds('.caption-tabs-list'), thumb: bounds('.caption-tab-selection') }
+  })
   const pointer = (type, point) => call('Input.dispatchMouseEvent', {
     type, ...point, button: type === 'mouseMoved' ? 'none' : 'left',
     buttons: type === 'mouseReleased' ? 0 : 1, clickCount: type === 'mouseMoved' ? 0 : 1,
   })
-  async function pointerTab(view) {
+  async function pointerTab(view, expectedHeights) {
     const point = await tabPoint(view)
     await pointer('mousePressed', point)
     await pointer('mouseReleased', point)
+    if (expectedHeights) assert.deepEqual(await tabHeights(), expectedHeights, 'vertical position while snapping to ' + view)
     await until(() => aligned(view), '短按滑块对齐 ' + view)
+    if (expectedHeights) assert.deepEqual(await tabHeights(), expectedHeights, 'vertical position after snapping to ' + view)
   }
   const change = (label, value) => run((selector, text, next) => {
     const field = [...document.querySelectorAll(selector + ' label')].find((item) => item.firstElementChild?.textContent === text && item.getClientRects().length)
@@ -211,6 +229,9 @@ test('isolated Electron opens the subtitle workflow and saves a Canvas subtitle 
     return select.value === next
   }, active, label, value)
   await until(() => page('home'), '首页启动')
+  await dismissSystemMotionNotice()
+  assert.equal(transcriptionScripts.size, 0, 'startup does not load transcription code')
+  assert.equal(await run(() => document.querySelector('[data-page="transcription"]') === null), true)
   assert.equal(await run(() => [...document.querySelectorAll('.home-description p')].length === 2 &&
     [...document.querySelectorAll('.home-description p')].every((item) => !item.textContent.trim().endsWith('。'))), true)
   assert.equal(await run(() => window.videoTools.settings().then((settings) => settings.outputDirectory)), directory, 'isolated profile was used')
@@ -225,22 +246,22 @@ test('isolated Electron opens the subtitle workflow and saves a Canvas subtitle 
   }), true)
   await until(() => run(() => document.querySelector('button[aria-label="切换侧栏"]')?.getAttribute('aria-pressed') === 'true'), '固定侧栏')
   assert.equal(await nav('语音转录'), true)
-  await until(() => page('transcription'), '深色转录工作台')
+  await until(() => aligned('jobs'), '首次载入深色转录工作台')
+  assert.equal(transcriptionScripts.size, 1, 'first visit loads the separate transcription bundle')
   assert.equal(await run(() => document.documentElement.classList.contains('dark') &&
     document.querySelectorAll('.caption-tabs-list [role="tab"]').length === 3), true)
-  await pointerTab('polish')
-  await pointerTab('synthesis')
-  await pointerTab('jobs')
+  const reducedHeights = await tabHeights()
+  await pointerTab('polish', reducedHeights)
+  await pointerTab('synthesis', reducedHeights)
+  await pointerTab('jobs', reducedHeights)
   assert.equal(await run(() => document.querySelector('.caption-tabs-list').dataset.animated), 'false')
-  assert.equal(await run(() => getComputedStyle(document.querySelector('.caption-tab-selection')).getPropertyValue('--caption-light-edge').trim()), '#9faeff')
-  const reducedStart = await tabPoint('jobs')
-  const reducedEnd = await tabPoint('polish')
-  await pointer('mousePressed', reducedStart)
-  await until(() => run(() => document.querySelector('.caption-tabs-list').dataset.dragging === 'true'), '减少动效仍可长按拖动')
-  await pointer('mouseMoved', reducedEnd)
-  assert.equal(await run(() => document.querySelector('.caption-tabs-list').dataset.glow), 'false')
-  await pointer('mouseReleased', reducedEnd)
-  await until(() => aligned('polish'), '减少动效松手吸附')
+  assert.equal(await run(() => getComputedStyle(document.querySelector('.caption-tab-selection')).getPropertyValue('--caption-light-tail').trim()), '#a78bfa')
+  const touch = await tabPoint('polish')
+  await call('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [touch] })
+  assert.equal(await aligned('jobs'), true)
+  await call('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+  await until(() => aligned('polish'), '减少动效下点按触屏切换')
+  assert.equal(await run(() => document.querySelector('.caption-tab-light')), null)
   await pointerTab('jobs')
   await setPinned(false)
   await screenshot('task-settings-dark')
@@ -303,6 +324,10 @@ test('isolated Electron opens the subtitle workflow and saves a Canvas subtitle 
       input.bottom < output.top && output.bottom < queue.top
   }, active), true)
   await until(() => aligned('jobs'), '窄窗滑块对齐')
+  const narrowHeights = await tabHeights()
+  await pointerTab('polish', narrowHeights)
+  await pointerTab('synthesis', narrowHeights)
+  await pointerTab('jobs', narrowHeights)
   await screenshot('task-settings-narrow')
   await call('Emulation.clearDeviceMetricsOverride')
   assert.equal(await change('字幕断句', 'original'), true)
@@ -349,33 +374,95 @@ test('isolated Electron opens the subtitle workflow and saves a Canvas subtitle 
   await until(() => page('transcription'), '返回任务设置')
   await closeSidebar()
   await wait(380)
-  await pointerTab('polish')
-  await pointerTab('synthesis')
-  await pointerTab('jobs')
-  const dragStart = await tabPoint('jobs')
-  const dragEnd = await tabPoint('synthesis')
-  await pointer('mousePressed', dragStart)
-  await until(() => run(() => document.querySelector('.caption-tabs-list').dataset.dragging === 'true'), '长按进入拖动')
-  assert.equal(await run(() => document.querySelector('.caption-tabs-list').dataset.glow), 'true')
-  assert.equal(await run(() => getComputedStyle(document.querySelector('.caption-tab-selection')).getPropertyValue('--caption-light-edge').trim()), '#ffc454')
-  await pointer('mouseMoved', { x: dragEnd.x - 16, y: dragEnd.y })
-  assert.equal(await run(() => document.querySelector('.caption-page').dataset.view), 'jobs')
-  await pointer('mouseReleased', dragEnd)
-  await until(() => aligned('synthesis'), '拖到第三段并吸附')
-  await pointer('mousePressed', dragEnd)
-  await until(() => run(() => document.querySelector('.caption-tabs-list').dataset.dragging === 'true'), '长按后向轨道外拖动')
-  await pointer('mouseMoved', { x: dragStart.x, y: dragStart.y + 80 })
-  await pointer('mouseReleased', { x: dragStart.x, y: dragStart.y + 80 })
-  await until(() => aligned('synthesis'), '轨道外放开后回到原段')
-  assert.equal(await run(() => document.querySelector('.caption-tabs-list').dataset.dragging), 'false')
+  const wideHeights = await tabHeights()
+  assert.equal(await run(() => getComputedStyle(document.querySelector('.caption-tab-selection')).getPropertyValue('--caption-light-head').trim()), '#ffaf35')
+  await pointerTab('polish', wideHeights)
+  await pointerTab('synthesis', wideHeights)
+  await pointerTab('jobs', wideHeights)
+  const first = await tabPoint('jobs')
+  const last = await tabPoint('synthesis')
+  await pointer('mousePressed', last)
+  await wait(220)
+  assert.equal(await aligned('jobs'), true, 'pressing an inactive tab alone has no effect')
+  await pointer('mouseMoved', first)
+  await pointer('mouseReleased', first)
+  assert.equal(await aligned('jobs'), true, 'dragging across tabs does not switch')
+  await pointer('mousePressed', first)
+  await pointer('mouseMoved', last)
+  await pointer('mouseReleased', last)
+  assert.equal(await aligned('jobs'), true, 'reverse drag does not switch either')
   await pointerTab('jobs')
   await call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'ArrowRight', code: 'ArrowRight', windowsVirtualKeyCode: 39 })
   await call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'ArrowRight', code: 'ArrowRight', windowsVirtualKeyCode: 39 })
   await until(() => aligned('polish'), '方向键切换')
+  await call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 })
+  await call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 })
+  await call('Input.dispatchKeyEvent', { type: 'keyDown', key: ' ', code: 'Space', windowsVirtualKeyCode: 32 })
+  await call('Input.dispatchKeyEvent', { type: 'keyUp', key: ' ', code: 'Space', windowsVirtualKeyCode: 32 })
+  assert.equal(await aligned('polish'), true)
+  await until(() => run(() => document.querySelectorAll('.caption-tab-light').length === 0), '前置切换流光淡出')
+  await pointerTab('polish')
+  assert.equal(await run(() => document.querySelectorAll('.caption-tab-light').length), 0, 'reselecting the current tab does not animate')
+  await run(() => {
+    window.fixtureTabFades = []
+    document.querySelector('.caption-tabs-list').addEventListener('animationend', (event) => {
+      if (event.animationName === 'caption-light-fade') window.fixtureTabFades.push(event.target.dataset.direction)
+    })
+  })
   assert.equal(await click('字幕视频合成'), true)
   assert.equal(await click('字幕优化与翻译'), true)
   assert.equal(await click('任务设置'), true)
+  assert.deepEqual(await run(() => [...document.querySelectorAll('.caption-tab-light')].map((sweep) => sweep.dataset.direction)),
+    ['right', 'left', 'left'], 'each rapid switch starts an independent sweep')
+  assert.deepEqual(await run(() => [...document.querySelectorAll('.caption-tab-light')].map((sweep) => {
+    const band = sweep.querySelector('.caption-tab-light-band')
+    const travel = band.getAnimations()[0]
+    const fade = sweep.getAnimations()[0]
+    const travelTime = travel.currentTime
+    const fadeTime = fade.currentTime
+    const position = (time) => {
+      travel.currentTime = time
+      return band.getBoundingClientRect().left - sweep.getBoundingClientRect().left
+    }
+    const start = position(0)
+    const fast = position(135)
+    const slow = position(405)
+    const end = position(540)
+    fade.currentTime = 450
+    const fading = Number(getComputedStyle(sweep).opacity)
+    travel.currentTime = travelTime
+    fade.currentTime = fadeTime
+    return [end > start ? 'right' : 'left', Math.abs(fast - start) > Math.abs(end - slow), fading > 0 && fading < 1]
+  })), [['right', true, true], ['left', true, true], ['left', true, true]])
+  await screenshot('caption-slider-sweeps')
   await until(() => aligned('jobs'), '连续点击后的滑块对齐')
+  assert.deepEqual(await tabHeights(), wideHeights)
+  await until(() => run(() => window.fixtureTabFades.length === 3 && !document.querySelector('.caption-tab-light')), '连续切换后流光分别淡出')
+  assert.deepEqual(await run(() => window.fixtureTabFades), ['right', 'left', 'left'])
+  await call('Emulation.setDeviceMetricsOverride', { width: 750, height: 650, deviceScaleFactor: 1, mobile: false })
+  await until(() => aligned('jobs'), '动效下缩放到 750 像素')
+  const animatedNarrowHeights = await tabHeights()
+  const narrowPress = await tabPoint('synthesis')
+  await pointer('mousePressed', narrowPress)
+  await wait(200)
+  assert.equal(await aligned('jobs'), true)
+  const narrowRelease = await tabPoint('polish')
+  await pointer('mouseMoved', narrowRelease)
+  await pointer('mouseReleased', narrowRelease)
+  assert.equal(await aligned('jobs'), true)
+  await pointerTab('polish', animatedNarrowHeights)
+  await pointerTab('synthesis', animatedNarrowHeights)
+  await pointerTab('jobs', animatedNarrowHeights)
+  assert.equal(await run(() => {
+    const scroller = document.querySelector('.caption-job-scroll')
+    scroller.scrollTop = scroller.scrollHeight
+    const innerScrolled = scroller.scrollTop > 0
+    scroller.scrollTop = 0
+    return innerScrolled && document.querySelector('[data-page="transcription"]').scrollTop === 0
+  }), true, 'narrow layout scrolls below the rail')
+  assert.deepEqual(await tabHeights(), animatedNarrowHeights)
+  await call('Emulation.clearDeviceMetricsOverride')
+  await until(() => aligned('jobs'), '动效下恢复宽窗')
   await run(() => {
     window.fixtureChimeNotes = 0
     const original = AudioContext.prototype.createOscillator
@@ -417,6 +504,19 @@ test('isolated Electron opens the subtitle workflow and saves a Canvas subtitle 
     field.dispatchEvent(new Event('input', { bubbles: true }))
     return true
   }, active), true)
+  assert.equal(await nav('设置'), true)
+  await until(() => page('settings'), '带校对草稿切离转录页')
+  assert.equal(await nav('语音转录'), true)
+  await until(async () => await page('transcription') && await aligned('polish'), '返回转录后仍在校对页')
+  assert.equal(transcriptionScripts.size, 1, 'revisiting does not reload the transcription bundle')
+  assert.equal(await run((selector) => document.querySelector(selector + ' textarea[aria-label="原文 1"]').value, active), '字幕校对。')
+  assert.equal(await click('任务设置'), true)
+  assert.equal(await click('清空列表'), true)
+  assert.match(await queueDialog(), /未保存的校对草稿将丢失/)
+  await until(() => clickDialog('取消'), '取消清空并保留校对')
+  assert.equal((await queueTasks()).length, live ? 1 : 2)
+  assert.equal(await click('字幕优化与翻译'), true)
+  assert.equal(await run(() => document.querySelector('textarea[aria-label="原文 1"]').value), '字幕校对。')
   assert.equal(await click('字幕视频合成'), true)
   await until(() => run(() => document.querySelector('.caption-preview video')?.paused), '切离校对暂停播放')
   assert.equal(await click('合成视频'), false, 'unsaved draft blocks synthesis')
@@ -442,18 +542,73 @@ test('isolated Electron opens the subtitle workflow and saves a Canvas subtitle 
   assert.notEqual(frame(output), frame(input))
   assert.equal(await run(() => window.fixtureChimeNotes), 2, 'manually synthesizing did not replay the recognition sound')
   assert.equal(await click('任务设置'), true)
-  assert.equal(await run(() => {
-    const remove = document.querySelector('button[aria-label^="移除任务 双音轨"]')
-    if (!remove || !remove.getClientRects().length) return false
-    remove.click()
-    return true
-  }), true)
+  assert.equal(await nav('删除任务 ' + review.name), true)
+  assert.ok((await queueDialog()).includes(review.name), 'single deletion names the task')
+  await until(() => clickDialog('确认删除'), '确认删除已完成任务')
   await until(() => run((id) => window.videoTools.transcription.tasks().then((tasks) => !tasks.some((item) => item.id === id)), review.id), '移除已完成任务')
+  if (!live) {
+    assert.equal(await run(() => document.querySelectorAll('.caption-queue-select[aria-pressed="true"]').length), 1, 'a neighbouring task is selected')
+    assert.equal(await click('清空列表'), true)
+    assert.match(await queueDialog(), /1 项任务记录/)
+    await until(() => clickDialog('确认清空'), '清空剩余成品任务')
+    await until(async () => (await queueTasks()).length === 0, '队列恢复为空')
+    assert.equal(await click('添加 2 项任务'), true)
+    await until(async () => (await queueTasks())[0]?.state === 'review', '再建待校对任务')
+    assert.equal(await click('字幕优化与翻译'), true)
+    await until(() => run(() => Boolean(document.querySelector('textarea[aria-label="原文 1"]')?.getClientRects().length)), '重新打开字幕校对')
+    await run(() => {
+      const field = document.querySelector('textarea[aria-label="原文 1"]')
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(field, '待删除的草稿')
+      field.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    assert.equal(await click('任务设置'), true)
+    assert.equal(await nav('删除任务 ' + review.name), true)
+    assert.match(await queueDialog(), /未保存的校对草稿将丢失/)
+    await until(() => clickDialog('确认删除'), '删除待校对任务和草稿')
+    await until(async () => (await queueTasks()).length === 1, '校对项已移除')
+    await until(() => click('清空列表'), '清理剩余测试任务')
+    await until(() => clickDialog('确认清空'), '确认清理剩余测试任务')
+    await until(async () => (await queueTasks()).length === 0, '准备测试清空活跃队列')
+    recognitionDelay = 3500
+    assert.equal(await change('音频语言', 'en'), true)
+    assert.equal(await click('添加 2 项任务'), true)
+    await until(async () => (await queueTasks()).map(({ state }) => state).join(',') === 'running,queued', '运行中和排队任务并存')
+    const chimes = await run(() => window.fixtureChimeNotes)
+    await until(() => click('清空列表'), '打开清空活跃任务的确认框')
+    assert.match(await queueDialog(), /2 项运行中或排队任务会先停止/)
+    await screenshot('task-queue-clear')
+    await until(() => clickDialog('确认清空'), '停止并清空活跃任务')
+    await until(async () => (await queueTasks()).length === 0, '排队项和运行项均已移除')
+    await until(() => run(() => !document.querySelector('.caption-queue-progress') &&
+      document.querySelector('.caption-assets').textContent.includes('双音轨')), '清空后隐藏旧进度并保留素材')
+    assert.equal(await run(() => window.fixtureChimeNotes), chimes, 'clearing a batch does not chime')
+  }
+  assert.ok(frame(output), 'exported video is still on disk after deletion')
+  assert.match(await readFile(srt, 'utf8'), /字幕校对。/)
+  assert.equal(await nav('设置'), true)
+  await until(() => page('settings'), '打开深色流光测试设置')
+  await until(() => nav('浅色主题'), '关闭浅色主题')
+  await until(() => run(() => document.documentElement.classList.contains('dark')), '深色已应用')
+  assert.equal(await nav('语音转录'), true)
+  await until(async () => await page('transcription') && await aligned('jobs'), '打开深色转录')
+  await wait(320)
+  await pointerTab('synthesis')
+  assert.equal(await run(() => document.querySelector('.caption-tab-light')?.dataset.direction), 'right')
+  assert.equal(await run(() => getComputedStyle(document.querySelector('.caption-tab-selection')).getPropertyValue('--caption-light-head').trim()), '#efffff')
+  await screenshot('caption-slider-dark')
+  await pointerTab('jobs')
+  assert.equal(await run(() => [...document.querySelectorAll('.caption-tab-light')].at(-1)?.dataset.direction), 'left')
+  assert.equal(await nav('设置'), true)
+  await until(() => page('settings'), '打开浅色主题设置')
+  await until(() => nav('浅色主题'), '恢复浅色主题')
+  await until(() => run(() => !document.documentElement.classList.contains('dark')), '浅色已恢复')
   const exited = once(child, 'exit')
   await run(() => window.close()).catch(() => {})
   assert.equal((await exited)[0], 0)
-  ;({ call, run } = await openDesktop())
+  ;({ call, run, transcriptionScripts } = await openDesktop())
   await until(() => page('home'), '重新启动 Electron')
+  await dismissSystemMotionNotice()
+  assert.equal(transcriptionScripts.size, 0)
   assert.equal(await run((id) => window.videoTools.transcription.tasks().then((tasks) => tasks.some((item) => item.id === id)), review.id), false)
   assert.match(await readFile(srt, 'utf8'), /字幕校对/)
   assert.equal(await nav('语音转录'), true)

@@ -333,7 +333,7 @@ function registerHandlers() {
   handle('caption:create', (inputs, options) => captions.create(inputs, options))
   handle('caption:cancel', (id?: string) => captions.cancel(id))
   handle('caption:retry', (id: string) => captions.retry(id))
-  handle('caption:remove', (id: string) => captions.remove(id))
+  handle('caption:remove', (target: string | string[]) => captions.remove(target))
   handle('caption:edit', (...args: Parameters<typeof captions.edit>) => captions.edit(...args))
   handle('caption:translate', (...args: Parameters<typeof captions.translate>) => captions.translate(...args))
   handle('caption:finish', (...args: Parameters<typeof captions.finish>) => captions.finish(...args))
