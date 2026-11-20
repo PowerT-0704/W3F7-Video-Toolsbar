@@ -1,5 +1,29 @@
 # 验收记录
 
+## v1.3.0 本地验收
+
+Windows x64，Electron 45.3.3，外置 FFmpeg 和 FFprobe 9.0.2。桌面测试使用临时配置目录及合成的音视频。
+
+| 检查 | 结果 |
+| --- | --- |
+| 视频封面、音乐与 BAT | 三种封面方式、首帧顺序、时间轴同步、音乐封面和歌词测试通过。 |
+| 语音转录与批量 | 用 20 分钟以上的合成音轨检查三块提取、回填时间偏移及队列在一项失败后继续。覆盖上传、取消、限流、重试与无结果。 |
+| 真实免 Key 识别 | 必剪曾对短合成语音返回真实时间戳并成功生成 SRT。部分后续请求返回 HTTP 412，应用显示服务拒绝，任务可重试。 |
+| 字幕与视频 | 核对 SRT、VTT、ASS、JSON 往返、多音轨软字幕、ASS 描边和实际 Chromium Canvas 圆角字幕。抽样检查字幕时段，并确认输出保留两条音轨。 |
+| Windows 工作台 | 验证三个入口、侧栏固定、浅色主题、760 像素窄窗、中文路径拖入、切页后任务继续与保存校对。 |
+| LLM 与翻译 | 检查默认模型 deepseek-flash、空 Key 与本机 HTTP 测试端点，验证加密存储。剪映、微软、谷歌、DeepLX 通过固定响应测试。真实 DeepSeek 调用由用户填写自己的 Key 后测试。 |
+| 可选 Whisper | 通用 Windows CLI 启动、能力检查、SRT 读取和取消通过测试程序验证。实体模型与真实 Whisper API 的验收取决于用户配置。 |
+
+运行回归及桌面测试
+
+```powershell
+npm run build
+$env:W3F7_CAPTION_DESKTOP = '1'
+node --test tests/music.test.cjs tests/video-cover.test.cjs tests/transcription.test.cjs tests/transcription-desktop.test.cjs
+```
+
+设置 `W3F7_CAPTION_LIVE=1` 会增加一项真实必剪测试，只向服务发送即时生成的短合成语音。
+
 ## v1.1.1
 
 Windows 11 x64，Electron 45.3.3，外置 FFmpeg 和 FFprobe 9.0.2。桌面验收使用独立应用配置。

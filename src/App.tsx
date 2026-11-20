@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { CSSProperties, MouseEvent } from 'react'
-import { Clapperboard, FileMusic, History, House, Info, Settings2 } from 'lucide-react'
+import { AudioLines, Clapperboard, Cpu, FileMusic, History, House, Info, Network, Settings2 } from 'lucide-react'
 import { LayoutGroup, motion } from 'motion/react'
 import type { Page, Preferences, Theme, UpdateResult } from './bridge'
 import { api, applyTheme, errorText, initialTheme, type EngineStatus } from './workspace'
@@ -10,6 +10,8 @@ import { CoverPage } from './pages/CoverPage'
 import { HomePage, Startup } from './pages/HomePage'
 import { MusicPage } from './pages/MusicPage'
 import { SettingsPage } from './pages/SettingsPage'
+import { CaptionEnginesPage, CaptionSettingsPage } from './pages/CaptionSettingsPage'
+import { TranscriptionPage } from './pages/TranscriptionPage'
 import { StartupNotice } from './pages/StartupNotice'
 import { useHoverSidebar } from './ui/hover-sidebar'
 import { MotionEnabledContext, useMotionEnabled, useSystemReducedMotion } from './ui/motion-policy'
@@ -23,7 +25,10 @@ const pages = {
   home: { label: '起始页', icon: House },
   cover: { label: '视频封面封装', icon: Clapperboard },
   music: { label: '音乐封面解析', icon: FileMusic },
+  transcription: { label: '语音转录', icon: AudioLines },
   changelog: { label: '开发日志', icon: History },
+  engines: { label: '引擎说明', icon: Cpu },
+  models: { label: '模型与 API', icon: Network },
   settings: { label: '设置', icon: Settings2 },
   about: { label: '关于', icon: Info },
 } as const
@@ -210,12 +215,17 @@ export function App() {
 
   const views = {
     home: <HomePage active={page === 'home'} onOpenCover={() => navigate('cover')} onOpenMusic={() => navigate('music')}
+      onOpenTranscription={() => navigate('transcription')}
       onOpenLog={() => navigate('changelog')} update={update} />,
     cover: <CoverPage active={page === 'cover'} engine={engine} preferences={preferences}
       onChooseOutput={async () => { setPreferences(await api.chooseDirectory('outputDirectory')) }}
       onOpenSettings={() => navigate('settings')} onRetry={() => void detect()} />,
     music: <MusicPage active={page === 'music'} engine={engine} onOpenSettings={() => navigate('settings')} onRetry={() => void detect()} />,
+    transcription: <TranscriptionPage active={page === 'transcription'} engine={engine}
+      onConfigure={() => navigate('models')} onSettings={() => navigate('settings')} />,
     changelog: <ChangelogPage />,
+    engines: <CaptionEnginesPage engine={engine} onConfigure={() => navigate('models')} onRetry={() => void detect()} />,
+    models: <CaptionSettingsPage />,
     settings: <SettingsPage active={page === 'settings'} preferences={preferences} engine={engine} error={settingsError} systemReduced={systemReduced}
       themePending={themePending} onThemeChange={changeTheme}
       onSave={saveSettings} onRetry={() => void detect()} onPreferences={setPreferences} />,
@@ -249,14 +259,21 @@ export function App() {
                   <SidebarMenu aria-label="Tools_list">
                     <NavigationItem page="cover" current={page} onNavigate={navigate} />
                     <NavigationItem page="music" current={page} onNavigate={navigate} />
+                    <NavigationItem page="transcription" current={page} onNavigate={navigate} />
                   </SidebarMenu>
                 </SidebarGroup>
                 <SidebarSeparator />
                 <SidebarGroup>
                   <SidebarGroupLabel>About APP</SidebarGroupLabel>
-                  <SidebarMenu aria-label="About APP"><NavigationItem page="changelog" current={page} onNavigate={navigate} /></SidebarMenu>
+                  <SidebarMenu aria-label="About APP">
+                    <NavigationItem page="changelog" current={page} onNavigate={navigate} />
+                    <NavigationItem page="engines" current={page} onNavigate={navigate} />
+                  </SidebarMenu>
                 </SidebarGroup>
-                <SidebarGroup><SidebarGroupLabel>More</SidebarGroupLabel></SidebarGroup>
+                <SidebarGroup>
+                  <SidebarGroupLabel>More</SidebarGroupLabel>
+                  <SidebarMenu aria-label="More"><NavigationItem page="models" current={page} onNavigate={navigate} /></SidebarMenu>
+                </SidebarGroup>
               </SidebarContent>
               <SidebarFooter className="pb-3">
                 <SidebarMenu aria-label="应用">
@@ -271,7 +288,7 @@ export function App() {
             <div className="workspace-container">
               {(Object.keys(views) as Page[]).map((id) => {
                 const phase = id === page ? 'active' : id === outgoing?.page ? 'exiting' : 'idle'
-                if (phase === 'idle' && id !== 'cover' && id !== 'music') return null
+                if (phase === 'idle' && id !== 'cover' && id !== 'music' && id !== 'transcription') return null
                 return (
                   <div key={id} className="page-viewport" data-page={id} data-page-state={phase}
                     hidden={phase === 'idle'} inert={phase !== 'active'} tabIndex={-1}>

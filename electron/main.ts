@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, net, protocol, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, net, protocol, safeStorage, shell } from 'electron'
 import type { IpcMainInvokeEvent } from 'electron'
 import { spawn } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
@@ -12,6 +12,11 @@ import { MediaCache } from './media-cache.cjs'
 import { MusicWorkspace } from './music.cjs'
 import { MusicArtwork } from './music-artwork.cjs'
 import { createUpdateChecker } from './updates.cjs'
+import { CaptionConfiguration } from './caption-settings.cjs'
+import { mediaExtensions, subtitleExtensions } from './caption-media.cjs'
+import { renderCaptionOverlay } from './caption-canvas.cjs'
+import { TranscriptionWorkspace } from './transcription.cjs'
+import type { CaptionPicker } from '../src/transcription'
 
 type DirectorySetting = 'toolDirectory' | 'outputDirectory'
 type CoreRequest =
@@ -59,6 +64,21 @@ const frames = new FrameStore(mediaCache)
 const music = new MusicWorkspace()
 const musicArtwork = new MusicArtwork()
 const updates = createUpdateChecker(app.getVersion(), (url, options) => net.fetch(url, options))
+const chosenCaptionPaths = new Map<CaptionPicker, Set<string>>()
+const captionConfiguration = new CaptionConfiguration(join(app.getPath('userData'), 'transcription', 'settings.json'), safeStorage, (path) => {
+  if (!(['program', 'model', 'model-directory'] as const).some((type) => chosenCaptionPaths.get(type)?.has(path))) {
+    throw new Error('请通过文件选择器选择外置程序或模型。')
+  }
+})
+const captions = new TranscriptionWorkspace({
+  dataDirectory: app.getPath('userData'), settings: captionConfiguration,
+  tools: requireMediaTools, outputDirectory: () => preferences.outputDirectory,
+  authorize: (path, kind) => {
+    if (!chosenCaptionPaths.get(kind)?.has(path)) throw new Error('请通过文件选择器选择输出目录或字体。')
+  },
+  notify: (task) => { if (appWindow && !appWindow.isDestroyed()) appWindow.webContents.send('caption:task', task) },
+  render: renderCaptionOverlay,
+})
 
 protocol.registerSchemesAsPrivileged([
   { scheme: 'w3f7-media', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } },
@@ -277,6 +297,55 @@ function handle<Args extends unknown[], Result>(channel: string, handler: (...ar
 }
 
 function registerHandlers() {
+  handle('caption:pick', async (kind: 'media' | 'subtitle') => {
+    if (kind !== 'media' && kind !== 'subtitle') throw new Error('请选择媒体或字幕。')
+    const result = await dialog.showOpenDialog(appWindow!, {
+      title: kind === 'media' ? '选择音频或视频' : '选择字幕文件',
+      properties: ['openFile', 'multiSelections'],
+      filters: [{ name: kind === 'media' ? '音频和视频' : '字幕', extensions: kind === 'media' ? mediaExtensions : subtitleExtensions }],
+    })
+    return result.canceled ? { assets: [], errors: [] } : captions.importPaths(result.filePaths)
+  })
+  handle('caption:drop', (paths) => captions.importPaths(paths))
+  handle('caption:choose', async (kind: CaptionPicker) => {
+    const options: Record<CaptionPicker, { title: string; extensions?: string[] }> = {
+      output: { title: '选择字幕任务输出目录' },
+      program: { title: '选择已下载的 Whisper 程序', extensions: ['exe'] },
+      model: { title: '选择已下载的模型文件', extensions: ['bin', 'gguf', 'onnx'] },
+      'model-directory': { title: '选择已下载的模型目录' },
+      font: { title: '选择字幕字体', extensions: ['ttf', 'otf'] },
+    }
+    if (!Object.hasOwn(options, kind)) throw new Error('未知选择类型。')
+    const { title, extensions } = options[kind]
+    const result = await dialog.showOpenDialog(appWindow!, {
+      title, properties: [extensions ? 'openFile' : 'openDirectory'],
+      filters: extensions ? [{ name: title, extensions }] : undefined,
+    })
+    const path = result.canceled ? undefined : result.filePaths[0]
+    if (!path) return null
+    if (!chosenCaptionPaths.has(kind)) chosenCaptionPaths.set(kind, new Set())
+    chosenCaptionPaths.get(kind)!.add(path)
+    return path
+  })
+  handle('caption:preview', (id: string) => captions.preview(id))
+  handle('caption:tasks', () => captions.tasks())
+  handle('caption:create', (inputs, options) => captions.create(inputs, options))
+  handle('caption:cancel', (id?: string) => captions.cancel(id))
+  handle('caption:retry', (id: string) => captions.retry(id))
+  handle('caption:edit', (...args: Parameters<typeof captions.edit>) => captions.edit(...args))
+  handle('caption:translate', (...args: Parameters<typeof captions.translate>) => captions.translate(...args))
+  handle('caption:finish', (...args: Parameters<typeof captions.finish>) => captions.finish(...args))
+  handle('caption:export', (...args: Parameters<typeof captions.export>) => captions.export(...args))
+  handle('caption:reveal', (id: string) => {
+    const path = captions.locate(id)
+    if (!path) throw new Error('找不到成品。')
+    shell.showItemInFolder(path)
+  })
+  handle('caption:settings', () => captionConfiguration.settings())
+  handle('caption:save', (value: Parameters<typeof captionConfiguration.save>[0]) => captionConfiguration.save(value))
+  handle('caption:test-model', () => captions.testModel())
+  handle('caption:check-program', (engine: Parameters<typeof captions.checkProgram>[0]) => captions.checkProgram(engine))
+
   handle('assets:pick', async (kind: AssetKind) => {
     if (kind !== 'video' && kind !== 'cover') throw new Error('未知素材类型。')
     const existing = selected.get(kind)
@@ -498,10 +567,23 @@ function createWindow() {
   appWindow.webContents.on('will-navigate', (event) => event.preventDefault())
   appWindow.webContents.session.setPermissionRequestHandler((_contents, _permission, callback) => callback(false))
   const painted = new Promise<void>((resolve) => window.once('ready-to-show', resolve))
+  let captionClose: Promise<void> | undefined
   appWindow.on('close', (event) => {
     if (exporting || frameAction || cacheBusy || musicBusy) {
       event.preventDefault()
       void dialog.showMessageBox(appWindow!, { message: '当前操作完成后即可关闭窗口。' })
+      return
+    }
+    if (captions.working) {
+      event.preventDefault()
+      captionClose ??= dialog.showMessageBox(window, {
+        type: 'question', message: '还有字幕任务正在进行。', buttons: ['继续等待', '取消任务并退出'],
+        defaultId: 0, cancelId: 0,
+      }).then(async ({ response }) => {
+        if (response !== 1) return
+        await captions.dispose()
+        if (!window.isDestroyed()) window.close()
+      }).finally(() => { captionClose = undefined })
     }
   })
   appWindow.on('closed', () => {
@@ -522,9 +604,15 @@ if (app.requestSingleInstanceLock()) {
   })
   void app.whenReady().then(async () => {
     await loadPreferences()
+    await captionConfiguration.load()
     await mediaCache.initialize(preferences.cacheDirectory)
     protocol.handle('w3f7-media', (request) => {
       const url = new URL(request.url)
+      if (url.hostname === 'caption-source' || url.hostname === 'caption-preview') {
+        const source = captions.mediaSource(url.pathname.slice(1), url.hostname === 'caption-preview')
+        if (source) return streamLocalMedia(request, source.path, source.type)
+        return new Response('Not found', { status: 404 })
+      }
       if (url.hostname === 'music-cover') {
         const match = /^\/([a-f0-9-]{36})\/(\d+)$/.exec(url.pathname)
         if (match) return music.preview(match[1], Number(match[2]))
@@ -545,7 +633,7 @@ if (app.requestSingleInstanceLock()) {
     createWindow()
   })
   app.on('window-all-closed', () => {
-    void frames.dispose().catch((error) => console.error('无法清理临时帧', error)).finally(() => app.quit())
+    void Promise.allSettled([frames.dispose(), captions.dispose()]).then(() => app.quit())
   })
 } else {
   app.quit()

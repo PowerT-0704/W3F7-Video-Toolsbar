@@ -1,4 +1,4 @@
-import { ArrowRight, Clapperboard, FileMusic, Film, History } from 'lucide-react'
+import { ArrowRight, AudioLines, Clapperboard, FileMusic, Film, History } from 'lucide-react'
 import { animate, motion, useMotionValue, useTransform } from 'motion/react'
 import { version } from '../../package.json'
 import { ActionButton } from '../ui/action-button'
@@ -50,8 +50,8 @@ function AnimatedFilmEmblem({ active }: { active: boolean }) {
   return <motion.div style={{ rotate, x, y }} className="film-emblem" aria-hidden="true"><Film /></motion.div>
 }
 
-export function HomePage({ active, onOpenCover, onOpenMusic, onOpenLog, update }: {
-  active: boolean; onOpenCover: () => void; onOpenMusic: () => void; onOpenLog: () => void; update?: UpdateResult
+export function HomePage({ active, onOpenCover, onOpenMusic, onOpenTranscription, onOpenLog, update }: {
+  active: boolean; onOpenCover: () => void; onOpenMusic: () => void; onOpenTranscription: () => void; onOpenLog: () => void; update?: UpdateResult
 }) {
   const enabled = useMotionEnabled()
   const [error, setError] = useState('')
@@ -61,12 +61,13 @@ export function HomePage({ active, onOpenCover, onOpenMusic, onOpenLog, update }
         <div className="home-copy">
           <BlurFade delay={0.045}>
             <h1>W3F7の<span>Video_Toolsbar</span></h1>
-            <p>面向视频与音频工作流的本地工具箱。为 MP4 封装封面，从 FLAC 或 MP3 提取封面与歌词，也能把本地歌词封装进音乐副本。</p>
+            <p>面向音视频工作流的工具箱。封装 MP4 封面，处理音乐封面和歌词，或把音视频转成可校对的字幕。</p>
           </BlurFade>
           <BlurFade delay={0.095}>
             <div className="home-actions">
               <ActionButton size="lg" shimmer="hover" onClick={onOpenCover}><Clapperboard />视频封面封装</ActionButton>
               <Button variant="outline" size="lg" onClick={onOpenMusic}><FileMusic />音乐封面解析</Button>
+              <Button variant="outline" size="lg" onClick={onOpenTranscription}><AudioLines />语音转录</Button>
               <Button variant="ghost" size="lg" onClick={onOpenLog}><History />开发日志</Button>
             </div>
           </BlurFade>

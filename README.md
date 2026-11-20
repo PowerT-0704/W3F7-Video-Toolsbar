@@ -4,7 +4,7 @@
 
 **面向视频与音频工作流的本地工具箱。**
 
-Windows x64 安装版与便携版 **v1.2.3**
+公开下载 **v1.2.3** · 当前源码 **v1.3.0**
 
 [![正式版](https://img.shields.io/github/v/release/PowerT-0704/W3F7-Video-Toolsbar?label=release&style=flat-square)](https://github.com/PowerT-0704/W3F7-Video-Toolsbar/releases/latest)
 [![Release 附件累计下载](https://img.shields.io/github/downloads/PowerT-0704/W3F7-Video-Toolsbar/total?label=downloads&style=flat-square)](https://github.com/PowerT-0704/W3F7-Video-Toolsbar/releases)
@@ -42,6 +42,10 @@ Windows x64 安装版与便携版 **v1.2.3**
 
 <p align="center"><img src="docs/readme/music-cover.png" width="900" alt="深色音乐工具，显示 Blue Hour 的内嵌封面、播放器和随进度高亮的歌词"></p>
 
+### 语音转录 · v1.3.0
+
+本地音视频可用必剪免 Key 转录。工作台支持长音频分块、单项和批量任务、编辑与重译字幕、导出 SRT、ASS、VTT、TXT、JSON，以及生成带软字幕或硬字幕的视频。
+
 ## 快速开始
 
 ### 下载与启动
@@ -54,7 +58,7 @@ Windows x64 安装版与便携版 **v1.2.3**
 
 1. 从 [FFmpeg 官方下载页](https://ffmpeg.org/download.html#build-windows) 进入 Windows 构建下载。把压缩包解压到固定目录，确认 `bin` 里同时有 `ffmpeg.exe` 和 `ffprobe.exe`。
 2. 将 `bin` 的绝对路径加入 Windows 用户 PATH，重开终端和工具，执行 `ffmpeg -version` 与 `ffprobe -version`。桌面版也能在「设置 → FFmpeg」直接选择 `bin` 文件夹。
-3. FFmpeg 用于视频封装、抽帧和音乐封面提取，FFprobe 用于识别媒体和校验成品。安装版与便携版均使用外置 FFmpeg。
+3. FFmpeg 用于视频封装、抽帧、音乐封面提取、转录前音轨提取和字幕合成。FFprobe 识别媒体并校验成品。ASS 硬字幕需要含 libass 的 FFmpeg，硬字幕视频输出需要 `libx264`。
 
 ### 视频封面封装
 
@@ -78,6 +82,14 @@ Windows x64 安装版与便携版 **v1.2.3**
 ### 单文件批处理
 
 选中一个 MP4 和一张静态 PNG、JPG 或 JPEG，一起拖到 BAT。命令窗口会说明三种封面方式。输入 `1`、`2` 或 `3` 后回车，直接回车默认选 `1`。成品保存在 BAT 所在目录，同名时自动编号。Windows 自带的 PowerShell 会运行脚本内嵌的处理核心。 [W3F7-Video-Cover.bat](W3F7-Video-Cover.bat)
+
+### 语音转录
+
+1. 打开「语音转录」，选取或拖入音视频和已有字幕。视频如有多条音轨，可在素材卡切换。默认使用必剪和规则断句，开始前可查看联网阶段会发送的内容。
+2. 在「处理与输出」选择仅转录、处理已有字幕、转录并处理字幕、全流程或仅合成。多文件进入队列，可单项取消或重试。
+3. 在校对表中点行号跳转播放。修改原文、译文或时间，或合并连续行后保存。选用翻译服务时可对失败行重译。
+4. 选择字幕格式和双语布局，再导出字幕或合成视频。任务输出目录未选择时，使用应用默认目录或源文件所在目录。
+5. 如需语义断句、校正或大模型翻译，进入「More → 模型与 API」，默认模型是 `deepseek-flash`。填入自己的 Key，保存并测试连接。使用本地 Whisper 时，先自行准备兼容的 Windows 程序和模型，再在「本地 Whisper」选路径并检查程序。
 
 ## 设置与更新
 

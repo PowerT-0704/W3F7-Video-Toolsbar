@@ -1,6 +1,8 @@
+import type { TranscriptionAPI } from './transcription'
+
 export type AssetKind = 'video' | 'cover'
 export type VideoCoverMode = 'embedded' | 'first-frame' | 'both'
-export type Page = 'home' | 'cover' | 'music' | 'changelog' | 'settings' | 'about'
+export type Page = 'home' | 'cover' | 'music' | 'transcription' | 'changelog' | 'engines' | 'models' | 'settings' | 'about'
 export type MusicFormat = 'flac' | 'mp3'
 export interface MusicCover {
   index: number
@@ -88,6 +90,7 @@ export interface MediaCacheMove {
   incomplete: boolean
 }
 export interface DesktopAPI {
+  transcription: TranscriptionAPI
   pick: (kind: AssetKind) => Promise<Asset | null>
   drop: (files: File[]) => Promise<Asset[]>
   inspect: (id: string) => Promise<VideoDetails>

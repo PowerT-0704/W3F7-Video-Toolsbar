@@ -2,6 +2,30 @@ import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { DesktopAPI } from '../src/bridge'
 
 const api: DesktopAPI = {
+  transcription: {
+    pick: (type) => ipcRenderer.invoke('caption:pick', type),
+    drop: (files) => ipcRenderer.invoke('caption:drop', files.map((file) => webUtils.getPathForFile(file))),
+    choose: (kind) => ipcRenderer.invoke('caption:choose', kind),
+    preview: (id) => ipcRenderer.invoke('caption:preview', id),
+    tasks: () => ipcRenderer.invoke('caption:tasks'),
+    create: (inputs, options) => ipcRenderer.invoke('caption:create', inputs, options),
+    cancel: (id) => ipcRenderer.invoke('caption:cancel', id),
+    retry: (id) => ipcRenderer.invoke('caption:retry', id),
+    edit: (id, revision, cues) => ipcRenderer.invoke('caption:edit', id, revision, cues),
+    translate: (id, rows) => ipcRenderer.invoke('caption:translate', id, rows),
+    finish: (id, output) => ipcRenderer.invoke('caption:finish', id, output),
+    export: (id, formats, layout) => ipcRenderer.invoke('caption:export', id, formats, layout),
+    reveal: (id) => ipcRenderer.invoke('caption:reveal', id),
+    settings: () => ipcRenderer.invoke('caption:settings'),
+    save: (settings) => ipcRenderer.invoke('caption:save', settings),
+    testModel: () => ipcRenderer.invoke('caption:test-model'),
+    checkProgram: (engine) => ipcRenderer.invoke('caption:check-program', engine),
+    onTask: (callback) => {
+      const listener = (_event: Electron.IpcRendererEvent, task: Parameters<typeof callback>[0]) => callback(task)
+      ipcRenderer.on('caption:task', listener)
+      return () => ipcRenderer.removeListener('caption:task', listener)
+    },
+  },
   pick: (kind) => ipcRenderer.invoke('assets:pick', kind),
   drop: (files) => ipcRenderer.invoke('assets:drop', files.map((file) => webUtils.getPathForFile(file))),
   inspect: (id) => ipcRenderer.invoke('assets:inspect', id),
