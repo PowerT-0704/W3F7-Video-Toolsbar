@@ -40,6 +40,12 @@
 
 <p align="center"><sub>展开侧栏 · 点击窗口左上角的侧栏按钮或按 Ctrl+B 固定展开</sub></p>
 
+### 🌗 深浅主题
+
+在「设置 → 外观」拖动开关，月亮与太阳随滑块交替，页面即时换色。松手后，滑块吸附到选中的主题。深色切浅色时，流光沿滑块下边和右边移动，切回深色时沿上边和左边回到起点，完成一圈逆时针运动。
+
+<p align="center"><img src="docs/readme/theme-toggle.gif" width="900" alt="在设置中把主题开关从深色拖到浅色，再拖回深色。滑块上的月亮和太阳交替出现，边缘流光逆时针绕一圈"></p>
+
 ## 功能展示
 
 ### 🎬 视频封面封装
@@ -54,7 +60,7 @@
 
 试听 FLAC 或 MP3，导出原封面与内嵌歌词。裁剪新封面或导入 LRC 后，可一起写入同格式的音频副本。
 
-<p align="center"><img src="docs/readme/music-cover.png" width="900" alt="音乐封面解析实拍，显示 s0rrow 的 unhappy FLAC、500 × 500 内嵌封面、暂停进度和内嵌歌词"></p>
+<p align="center"><img src="docs/readme/music-cover.png" width="700" alt="音乐封面解析实拍，显示 s0rrow 的 unhappy FLAC、500 × 500 内嵌封面、暂停进度和内嵌歌词"></p>
 
 <p align="center"><sub>实测 · 导入本地 FLAC，试听并拖动进度，同时查看内嵌封面与歌词</sub></p>
 
@@ -84,15 +90,6 @@
 <p align="center"><img src="docs/readme/settings-storage.png" width="900" alt="设置页下半部分实拍，显示默认输出文件夹、媒体缓存和转录缓存"></p>
 
 <p align="center"><sub>设置 · 默认输出文件夹、媒体缓存与转录缓存</sub></p>
-
-</details>
-
-<details>
-<summary>🌗 查看深浅主题切换演示</summary>
-
-在「设置 → 外观」拖动开关，页面即时换色，月亮与太阳随滑块交替。松手后，滑块吸附到选中的主题。
-
-<p align="center"><img src="docs/readme/theme-toggle.gif" width="900" alt="在设置中把主题从深色拖到浅色再切回，滑块图标随主题切换"></p>
 
 </details>
 
