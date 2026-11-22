@@ -76,34 +76,7 @@
 
 <p align="center"><sub>语音转录工作台 · 任务队列、操作预设与处理选项</sub></p>
 
-## 设置与关于
 
-### ⚙️ 设置
-
-<p align="center"><img src="docs/readme/settings.png" width="900" alt="设置页上半部分实拍，显示深色主题、减少动效和 FFmpeg 检测结果"></p>
-
-<p align="center"><sub>设置 · 外观、动效与 FFmpeg 检测</sub></p>
-
-<details>
-<summary>📂 查看输出与缓存设置</summary>
-
-<p align="center"><img src="docs/readme/settings-storage.png" width="900" alt="设置页下半部分实拍，显示默认输出文件夹、媒体缓存和转录缓存"></p>
-
-<p align="center"><sub>设置 · 默认输出文件夹、媒体缓存与转录缓存</sub></p>
-
-</details>
-
-### 🧩 模型与 API
-
-<p align="center"><img src="docs/readme/models-api.png" width="900" alt="模型与 API 页实拍，显示字幕处理模型、展开的 Whisper API 设置和本地 Whisper，两个密钥字段均待配置"></p>
-
-<p align="center"><sub>模型与 API · 字幕处理模型、联网服务和本地 Whisper</sub></p>
-
-### ℹ️ 关于
-
-<p align="center"><img src="docs/readme/about.png" width="900" alt="关于页实拍，显示 W3F7 作者信息、v1.3.2、检查更新、支持作者、其他链接和 GitHub 项目"></p>
-
-<p align="center"><sub>关于 · 版本、检查更新、作者与相关项目</sub></p>
 
 ## 快速开始
 
