@@ -12,21 +12,33 @@
 [![MIT 许可](https://img.shields.io/badge/license-MIT-805abc?style=flat-square)](LICENSE)
 [![FFmpeg](https://img.shields.io/badge/engine-FFmpeg-4e9a76?style=flat-square)](https://ffmpeg.org/download.html#build-windows)
 
-[📦 Windows x64 安装版](https://github.com/PowerT-0704/W3F7-Video-Toolsbar/releases/download/v1.3.2/W3F7-Video-Toolsbar-1.3.2-Setup-x64.exe) · [便携版 ZIP](https://github.com/PowerT-0704/W3F7-Video-Toolsbar/releases/download/v1.3.2/W3F7-Video-Toolsbar-1.3.2-win-x64.zip) · [单文件 BAT](https://github.com/PowerT-0704/W3F7-Video-Toolsbar/releases/download/v1.3.2/W3F7-Video-Cover.bat) · [SHA-256 校验清单](https://github.com/PowerT-0704/W3F7-Video-Toolsbar/releases/download/v1.3.2/SHA256SUMS-v1.3.2.txt) · [发布说明](https://github.com/PowerT-0704/W3F7-Video-Toolsbar/releases/tag/v1.3.2)
+[📦 Windows x64 安装版](https://github.com/PowerT-0704/W3F7-Video-Toolsbar/releases/download/v1.3.2/W3F7-Video-Toolsbar-1.3.2-Setup-x64.exe) · [🗜️ 便携版 ZIP](https://github.com/PowerT-0704/W3F7-Video-Toolsbar/releases/download/v1.3.2/W3F7-Video-Toolsbar-1.3.2-win-x64.zip) · [⚡ 单文件 BAT](https://github.com/PowerT-0704/W3F7-Video-Toolsbar/releases/download/v1.3.2/W3F7-Video-Cover.bat) · [🔐 SHA-256 校验清单](https://github.com/PowerT-0704/W3F7-Video-Toolsbar/releases/download/v1.3.2/SHA256SUMS-v1.3.2.txt) · [发布说明](https://github.com/PowerT-0704/W3F7-Video-Toolsbar/releases/tag/v1.3.2)
 
-[界面预览](#界面预览) · [功能展示](#功能展示) · [快速开始](#快速开始) · [开发路线图](ROADMAP.md) · [历史验收记录](docs/verification.md)
+[功能速览](#功能速览) · [界面预览](#界面预览) · [功能展示](#功能展示) · [设置与关于](#设置与关于) · [快速开始](#快速开始) · [开发路线图](ROADMAP.md) · [历史验收记录](docs/verification.md)
 
 </div>
 
+## 功能速览
+
+| 工具 | 能做什么 | 常用格式 |
+| :--- | :--- | :--- |
+| 🎬 视频封面封装 | 从时间轴选帧或导入图片，内嵌封面、插入片头第一帧，或同时执行两项 | MP4 · PNG · JPG · JPEG |
+| 🎵 音乐封面解析 | 试听音频，导出内嵌封面与歌词，另存带新封面或新歌词的副本 | FLAC · MP3 · LRC |
+| 🎙️ 语音转录 | 批量转录、校对和翻译字幕，也可把字幕合成到视频 | SRT · ASS · VTT · TXT · JSON |
+
 ## 界面预览
+
+### 🏠 起始页
 
 <p align="center"><img src="docs/readme/home.png" width="900" alt="W3F7のVideo_Toolsbar v1.3.2 深色首页，显示视频封面封装、音乐封面解析和语音转录入口"></p>
 
-### 🌗 深浅主题
+<p align="center"><sub>起始页 · 从首页直接进入三个音视频工具</sub></p>
 
-在「设置 → 外观」拖动开关，月亮与太阳随滑块交替，页面即时换色。松手后，滑块吸附到选中的主题。深色切浅色时，流光沿滑块下边和右边移动，切回深色时沿上边和左边回到起点，完成一圈逆时针运动。
+### 🧭 展开侧栏
 
-<p align="center"><img src="docs/readme/theme-toggle.gif" width="900" alt="在设置中把主题开关从深色拖到浅色，再拖回深色。滑块上的月亮和太阳交替出现，边缘流光逆时针绕一圈"></p>
+<p align="center"><img src="docs/readme/sidebar-expanded.png" width="900" alt="v1.3.2 起始页固定展开侧栏，显示全部工具入口、模型与 API，以及底部设置和关于"></p>
+
+<p align="center"><sub>展开侧栏 · 点击窗口左上角的侧栏按钮或按 Ctrl+B 固定展开</sub></p>
 
 ## 功能展示
 
@@ -34,15 +46,19 @@
 
 在 MP4 时间轴上定位画面，可将当前帧或本地图片写为内嵌封面、插入片头第一帧，或同时执行两项。仅内嵌封面时保留原有音视频编码。
 
-<p align="center"><img src="docs/readme/video-cover.png" width="900" alt="深色视频封面工具，显示 Blue Hour 的视频预览、时间轴、封面预览及封装按钮"></p>
+<p align="center"><img src="docs/readme/video-cover.png" width="900" alt="视频封面封装实拍，显示 MP4 时间轴、从 DJI DNG 提取的街巷 JPEG 封面，以及封装完成状态"></p>
+
+<p align="center"><sub>实测 · 提取 DJI DNG 内嵌的 1280 × 720 JPEG，作为封面写入样片 MP4</sub></p>
 
 ### 🎵 音乐封面解析
 
 试听 FLAC 或 MP3，导出原封面与内嵌歌词。裁剪新封面或导入 LRC 后，可一起写入同格式的音频副本。
 
-<p align="center"><img src="docs/readme/music-cover.png" width="900" alt="深色音乐工具，显示 Blue Hour 的内嵌封面、播放器和随进度高亮的歌词"></p>
+<p align="center"><img src="docs/readme/music-cover.png" width="900" alt="音乐封面解析实拍，显示 s0rrow 的 unhappy FLAC、500 × 500 内嵌封面、暂停进度和内嵌歌词"></p>
 
-### 语音转录 · v1.3.2
+<p align="center"><sub>实测 · 导入本地 FLAC，试听并拖动进度，同时查看内嵌封面与歌词</sub></p>
+
+### 🎙️ 语音转录 · v1.3.2
 
 本地音视频可用必剪免 Key 转录。工作台支持长音频分块、单项和批量任务、编辑与重译字幕、导出 SRT、ASS、VTT、TXT、JSON，以及生成带软字幕或硬字幕的视频。
 
@@ -51,6 +67,46 @@
 点击顶部三个视图时，滑块沿固定轨道切换，渐变流光顺着切换方向减速淡出。「字幕优化与翻译」保留预览和校对草稿，「字幕视频合成」集中设置字幕类型、容器和输出。
 
 <p align="center"><img src="docs/readme/transcription.png" width="900" alt="v1.3.2 语音转录任务设置，左栏显示素材、任务进度和清空列表入口，右栏显示操作预设与处理选项"></p>
+
+<p align="center"><sub>语音转录工作台 · 任务队列、操作预设与处理选项</sub></p>
+
+## 设置与关于
+
+### ⚙️ 设置
+
+<p align="center"><img src="docs/readme/settings.png" width="900" alt="设置页上半部分实拍，显示深色主题、减少动效和 FFmpeg 检测结果"></p>
+
+<p align="center"><sub>设置 · 外观、动效与 FFmpeg 检测</sub></p>
+
+<details>
+<summary>📂 查看输出与缓存设置</summary>
+
+<p align="center"><img src="docs/readme/settings-storage.png" width="900" alt="设置页下半部分实拍，显示默认输出文件夹、媒体缓存和转录缓存"></p>
+
+<p align="center"><sub>设置 · 默认输出文件夹、媒体缓存与转录缓存</sub></p>
+
+</details>
+
+<details>
+<summary>🌗 查看深浅主题切换演示</summary>
+
+在「设置 → 外观」拖动开关，页面即时换色，月亮与太阳随滑块交替。松手后，滑块吸附到选中的主题。
+
+<p align="center"><img src="docs/readme/theme-toggle.gif" width="900" alt="在设置中把主题从深色拖到浅色再切回，滑块图标随主题切换"></p>
+
+</details>
+
+### 🧩 模型与 API
+
+<p align="center"><img src="docs/readme/models-api.png" width="900" alt="模型与 API 页实拍，显示字幕处理模型、展开的 Whisper API 设置和本地 Whisper，两个密钥字段均待配置"></p>
+
+<p align="center"><sub>模型与 API · 字幕处理模型、联网服务和本地 Whisper</sub></p>
+
+### ℹ️ 关于
+
+<p align="center"><img src="docs/readme/about.png" width="900" alt="关于页实拍，显示 W3F7 作者信息、v1.3.2、检查更新、支持作者、其他链接和 GitHub 项目"></p>
+
+<p align="center"><sub>关于 · 版本、检查更新、作者与相关项目</sub></p>
 
 ## 快速开始
 
